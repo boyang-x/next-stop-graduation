@@ -1,0 +1,18 @@
+async page=>{
+  await page.reload();const errors=[];page.on('pageerror',e=>errors.push(e.message));
+  const assert=(v,m)=>{if(!v)throw new Error(m);},click=(a,id)=>page.locator('[data-action="'+a+'"]'+(id?'[data-id="'+id+'"]':'')).first().click(),choose=i=>page.locator('[data-action="choice"][data-index="'+i+'"]').click();
+  const read=()=>page.evaluate(()=>JSON.parse(localStorage.getItem('next-stop-campus-v1')));
+  const shot=n=>page.screenshot({path:'output/playwright/v5-expanded-'+n+'.png',fullPage:true});
+  async function load(mode){await page.evaluate(async mode=>{
+    const E=await import('/src/engine.js'),C=await import('/src/content.js'),S=await import('/src/story.js');
+    const s=E.createGame({school:'aero',major:'humanities',gender:'female',name:'文科试玩',background:'ordinary'},411);s.sem=2;s.notices=[];s.feedback=null;s.card=null;s.phase='events';s.policy.published=true;s.hooks['2-0-committee']=true;
+    if(mode==='summer')s.phase='start';
+    if(mode==='competition')s.card={...S.prepareStoryEvent(s,C.EVENTS.find(e=>e.id==='competition-entry')),kind:'choice',consume:true};
+    if(mode==='policy'){s[s.policy.metric]=s.policy.places+8;s.card={...S.prepareStoryEvent(s,C.EVENTS.find(e=>e.id==='policy-near-line')),kind:'choice',consume:true};}
+    E.ensureCard(s);localStorage.setItem('next-stop-campus-v1',JSON.stringify(s));
+  },mode);await page.reload();await click('resume');}
+  async function reach(id){for(let i=0;i<30;i++){const s=await read();if(s.card?.id===id)return;if(s.feedback){await click('continue');continue;}if(s.card.kind==='notice'){await click('notice');continue;}if(s.card.kind==='free'){await click('free','skip');continue;}if(s.card.kind==='choice'){await page.locator('[data-action="choice"]:not(:disabled)').first().click();continue;}throw new Error(s.card.kind);}throw new Error('Missing '+id);}
+  await page.setViewportSize({width:1440,height:1000});await load('competition');assert((await read()).card.text.includes('公共议题调研赛'),'humanities competition');await choose(0);await click('continue');await reach('competition-team');await shot('team');await choose(0);await click('continue');await reach('competition-final');assert(await page.locator('[data-action="choice"][data-index="2"]:not(:disabled)').count()===1,'cooperation option');await shot('presentation');await choose(2);await click('continue');
+  await page.setViewportSize({width:390,height:844});await load('summer');await click('free','internship');await click('continue');assert((await read()).card.id==='internship-apply','application');await choose(0);const succeeded=(await read()).plotFlags.internshipActive;await click('continue');if(succeeded){assert((await read()).card.id==='internship-work','actual work');await shot('internship-work-mobile');await choose(1);await click('continue');assert((await read()).card.id==='internship-end','handover');await page.reload();await click('resume');await shot('handover-mobile');await choose(0);assert((await read()).history.some(h=>h.tag==='实习经历'),'experience after handover');await click('continue');}assert((await read()).card.kind==='focus','semester after holiday');assert(succeeded,'seed exercises internship success');
+  await load('policy');await shot('policy-mobile');assert(!(await page.locator('body').innerText()).includes('{policyLine}'),'template resolved');assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),'width');assert(errors.length===0,'errors '+errors);return {status:'passed',scenarios:['humanities-teamwork','summer-internship','saved-handover','policy-pressure'],screenshots:5,errors};
+}

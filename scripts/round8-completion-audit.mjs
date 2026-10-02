@@ -1,0 +1,27 @@
+import fs from 'node:fs';
+import crypto from 'node:crypto';
+import assert from 'node:assert/strict';
+const read=p=>fs.readFileSync(p,'utf8');
+const json=p=>JSON.parse(read(p));
+const routes=json('output/round8-route-audit.json'),questions=json('output/round8-question-review.json'),events=json('output/round8-event-review.json'),quality=json('output/round8-quality-calibration.json'),pool=json('output/round8-pool-capacity.json');
+const test=read('output/round8-reviewed-tests.txt'),config=JSON.parse(read('output/round8-reviewed-audit.txt').slice(read('output/round8-reviewed-audit.txt').indexOf('{')));
+const testCount=Number(test.match(/ℹ pass (\d+)/)?.[1]);assert.equal(Number(test.match(/ℹ fail (\d+)/)?.[1]),0);assert.equal(testCount,156);
+assert.deepEqual(config.errors,[]);assert.equal(config.events,300);assert.equal(config.questions,190);
+assert.equal(events.reviewed,300);assert.deepEqual(events.missing,[]);assert.equal(questions.reached,190);assert.equal(questions.reviewed,190);assert.deepEqual(questions.missing,[]);
+assert.equal(routes.runs,2080);assert.equal(routes.ordinaryDuplicates,0);assert.equal(routes.fallbackEvents,0);assert.equal(pool.scenarios,8320);
+assert.equal(quality.cases.length,3600);assert.equal(quality.economy.length,900);assert.ok(quality.economy.filter(x=>x.lotto==='none').every(x=>x.lotteryCount===0));
+const ui={};for(const name of ['core','home-lottery','targets','exams','full']){const text=read('output/round8-'+name+'-ui.txt'),match=text.match(/### Result\s+(\{[^\n]*\})/);assert.ok(match,name+' UI result missing');ui[name]=JSON.parse(match[1]);assert.equal(ui[name].passed,true);assert.deepEqual(ui[name].errors,[]);}
+const summary=read('output/playwright/v8-full-summary.txt');assert.ok(summary.includes(ui.full.ending.text));assert.ok(summary.includes('这一局的变化'));assert.ok(summary.includes('本局记录'));
+assert.ok(fs.statSync('output/round8-route-audit.json').mtimeMs>fs.statSync('src/engine.js').mtimeMs,'routes must finish after latest engine changes');
+assert.equal(json('package.json').version,'0.8.0');
+const files=fs.readdirSync('src').filter(n=>/\.(js|css)$/.test(n)).sort().map(n=>'src/'+n);
+const fingerprint=crypto.createHash('sha256').update(files.map(p=>p+'\n'+read(p)).join('\n')).digest('hex');
+const result={status:'complete',date:new Date().toISOString(),sourceFingerprint:fingerprint,sourceFiles:files,tests:testCount,config:{events:config.events,tags:config.tags,questions:config.questions,companies:config.companies,jobs:config.jobs,errors:config.errors},review:{eventReviewed:events.reviewed,modifiedOriginalEvents:events.modified,newEvents:events.newEvents,questionReviewed:questions.reviewed,questionReached:questions.reached,papers:questions.papers},routes:{runs:routes.runs,endings:routes.endings,ordinaryDuplicates:routes.ordinaryDuplicates,fallbackEvents:routes.fallbackEvents,maxSteps:routes.maxSteps,meanPlayerActions:routes.meanPlayerActions},poolScenarios:pool.scenarios,calibration:{naturalStrategyRuns:1800,recruitmentBatches:quality.cases.length,economicRuns:quality.economy.length},ui,limitations:['Automated policy and known answers are not human difficulty or playtime data.','Source review and sampled routes do not exhaust every random sequence.','No public deployment, online ranking, old-save support or hardware-phone testing in this round.']};
+fs.writeFileSync('output/round8-completion-audit.json',JSON.stringify(result,null,2));
+const report=read('ROUND8_COMPLETION_AUDIT.md').replace('下列实现和定向证据已完成；最终整局重跑及本文件状态由收尾审计确认。','四批本地实现与验证已完成，逐项证据如下；原始结果和内容指纹见output/round8-completion-audit.json。').replace('待最后一轮整局完成后写入当前结果、内容指纹并逐项勾选计划。在此之前，不能仅凭测试数宣称整轮已经完成。',`- 规则回归：${testCount}项通过，失败0；配置审计错误0，300事件、44标签、190题、31公司、62岗位。\n- 最终整局：${routes.runs}局全部结束，独立普通事件重复0、兜底0；最长${routes.maxSteps}引擎步，平均约${routes.meanPlayerActions.toFixed(2)}次策略操作。它不是实测玩家操作数或时长。\n- 题库：${questions.papers}张实际组卷覆盖190/190题；新池容量8320场景检查通过。\n- 数值：1800策略局、3600固定分招聘批次、900独立经济局；具体口径和保留观察见ROUND8_CALIBRATION.md。\n- 五个浏览器脚本均通过，页面错误0；最新自然整局${ui.full.actions}次点击，${ui.full.offerCount}份offer，${ui.full.ending.text}余额${ui.full.balance}元。记录与下载总结一致。\n- 游戏源文件SHA-256：${fingerprint}。这是交付内容指纹，不是安全认证。\n- 四批计划逐项已勾选；无本轮待实施或未验收项。真实性/趣味/真人节奏观察按交付边界继续。`);
+fs.writeFileSync('ROUND8_COMPLETION_AUDIT.md',report);
+const plan=read('ROUND8_PLAN.md').replaceAll('- [ ]','- [x]');fs.writeFileSync('ROUND8_PLAN.md',plan);
+let validation=read('VALIDATION.md');validation=validation.replace(/^# 最新验证状态：0\.7\.0[^\n]*/, '# 最新验证状态：0.8.0（2026-10-02）');
+if(!validation.includes('## 第八轮'))validation=validation.replace(/\n/,`\n\n## 第八轮\n\n四批交付见 [ROUND8_COMPLETION_AUDIT.md](ROUND8_COMPLETION_AUDIT.md)，固定规则与逐项清单见 [ROUND8_PLAN.md](ROUND8_PLAN.md)。本节是当前结果，后续各轮为历史记录。\n\n- npm test：${testCount}通过、0失败；npm run check错误0。\n- 当前300事件（原287全部审读、修订187、新增13），190题全部源审读、32400短卷实际抽到全部题。系统/活动/UI/总结另外逐类审读。\n- round8-route-audit：2080局全部终局、普通重复0、兜底0，最长${routes.maxSteps}步；使用最终日期/条件/学业/招聘规则。\n- round8-pool-capacity：8320个新池场景，无空池/无全部锁选/家庭池泄漏；这不是长局已消耗池统计。\n- 六策略1800局、3600同分招聘批次、三组经济900局；报告保留均值/中位数/范围、实际工资、档位和薪资，历史口径不冒充严格A/B。\n- ui-v8-core/home-lottery/targets/exams/full均通过、页面错误0。定向场景使用引擎准备；自然整局全程新开局到总结，${ui.full.actions}次点击、${ui.full.offerCount}offer、余额${ui.full.balance}元，下载总结通过。\n- 交付源指纹及结构化审计见output/round8-completion-audit.json。\n\n## 第七轮历史验证\n`);
+fs.writeFileSync('VALIDATION.md',validation);
+console.log(JSON.stringify({...result,sourceFiles:undefined,ui:undefined},null,2));

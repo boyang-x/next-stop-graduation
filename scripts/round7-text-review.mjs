@@ -1,0 +1,16 @@
+import fs from 'node:fs';
+import crypto from 'node:crypto';
+import {EVENTS,QUESTIONS} from '../src/content.js';
+import {TEXT_REVISIONS} from '../src/text-polish.js';
+import {AFTERNOON_ACTIVITIES,activitiesFor} from '../src/activities.js';
+const before=JSON.parse(fs.readFileSync('output/round7-events-before.json','utf8'));
+const old=new Map(before.map(e=>[e.id,e]));
+const fields=e=>({title:e.title,text:e.text,choices:e.choices.map(c=>({text:c.text,result:c.result,success:c.success?.text,failure:c.failure?.text}))});
+const reviewed=EVENTS.map(e=>({id:e.id,group:e.group,review:'read-and-revised-or-retained',revised:JSON.stringify(fields(old.get(e.id)))!==JSON.stringify(fields(e)),before:fields(old.get(e.id)),after:fields(e)}));
+const sourceHash=crypto.createHash('sha256').update(JSON.stringify(EVENTS)).digest('hex');
+const record={date:'2026-10-02',method:'scene-by-scene source text review; before/after catalog, not a quality score',events:EVENTS.length,choices:EVENTS.reduce((n,e)=>n+e.choices.length,0),questions:QUESTIONS.length,revisedEvents:reviewed.filter(e=>e.revised).length,authoredRevisionIds:TEXT_REVISIONS,sourceHash,reviewed};
+fs.writeFileSync('output/round7-text-review.json',JSON.stringify(record,null,2));
+fs.writeFileSync('output/round7-events-after.txt',EVENTS.map((e,i)=>`${i+1}. [${e.id}] ${e.title}\n${e.text}\n${e.choices.map((c,j)=>`${j+1}) ${c.text} → ${c.result||''}${c.success?' 成功:'+c.success.text:''}${c.failure?' 失败:'+c.failure.text:''}`).join('\n')}`).join('\n\n'));
+fs.writeFileSync('output/round7-questions-after.txt',QUESTIONS.map(q=>`[${q.id}] ${q.text}\n${q.options.join(' / ')}\n答案:${q.answer} 解析:${q.explanation}`).join('\n\n'));
+fs.writeFileSync('output/round7-activities-reviewed.json',JSON.stringify({afternoon:AFTERNOON_ACTIVITIES,weekend:activitiesFor({freeTime:{leisure:true}}),winter:activitiesFor({freeTime:{holiday:'寒假'},sem:1}),summer:activitiesFor({freeTime:{holiday:'暑假'},sem:4})},null,2));
+console.log(JSON.stringify({...record,reviewed:undefined,authoredRevisionIds:undefined},null,2));

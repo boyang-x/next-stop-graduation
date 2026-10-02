@@ -1,0 +1,9 @@
+.playwright-cli/
+output/
+node_modules/
+*.log
+.env
+.env.*
+Thumbs.db
+.DS_Store
+/innerWidth})

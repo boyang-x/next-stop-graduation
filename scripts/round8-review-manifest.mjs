@@ -1,0 +1,12 @@
+import fs from 'node:fs';
+import {EVENTS,QUESTIONS} from '../src/content.js';
+import {EVENT_CONDITIONS,SCOPED_EVENT_FIELDS} from '../src/event-conditions.js';
+const original=JSON.parse(fs.readFileSync('output/round8-content-before.json','utf8'));
+const reviewed=new Set(JSON.parse(fs.readFileSync('output/round8-reviewed-ids.json','utf8')));
+const allConditions=[...Object.keys(EVENT_CONDITIONS),...SCOPED_EVENT_FIELDS];
+const gate=e=>Object.fromEntries(allConditions.filter(k=>e[k]!==undefined).map(k=>[k,e[k]]));
+const events=EVENTS.map(e=>{const before=original.events.find(x=>x.id===e.id);const changed=before?Object.keys(e).filter(k=>JSON.stringify(e[k])!==JSON.stringify(before[k])):['new'];return {id:e.id,title:e.title,sourceReviewed:reviewed.has(e.id),delivery:changed.length?'revised':'retained',changedFields:changed,gate:gate(e),choices:e.choices.map((c,i)=>({index:i,text:c.text,deterministic:!c.probability,availability:Object.fromEntries(Object.entries(c).filter(([k])=>/^(requires|onceKey|minBalance)/.test(k))),next:[c,c.success,c.failure].filter(x=>x?.followUp).map(x=>x.followUp)})),before:before||null,after:e};});
+const result={scope:'Source review of every event, choice, outcome and link; runtime evidence is tracked separately and does not certify every scene individually',baselineEvents:original.events.length,currentEvents:EVENTS.length,reviewed:events.filter(e=>e.sourceReviewed).length,modified:events.filter(e=>e.changedFields.length&&e.before).length,newEvents:events.filter(e=>!e.before).length,missing:events.filter(e=>!e.sourceReviewed).map(e=>e.id),events};
+fs.writeFileSync('output/round8-event-review.json',JSON.stringify(result,null,2));
+fs.writeFileSync('ROUND8_EVENT_REVIEW.md','# 第八轮事件审读与修订清单\n\n当前源内容审读：'+result.reviewed+'/'+result.currentEvents+'事件。原有'+result.baselineEvents+'个事件，修改'+result.modified+'个，新增'+result.newEvents+'个场景（3个家庭场景、10个二战场景）。逐选项、结果、条件和接续的前后原文见 [完整记录](output/round8-event-review.json)。\n\n这是源内容审读记录，不等于全部整局、页面及系统节点已经验收。\n\n| ID | 当前标题 | 处置 | 调整字段 |\n| --- | --- | --- | --- |\n'+events.map(e=>`| ${e.id} | ${e.title.replaceAll('|','／')} | ${e.delivery==='retained'?'审读保留':e.before?'已修订':'新增审读'} | ${e.changedFields.join('、')||'—'} |`).join('\n')+'\n');
+console.log(JSON.stringify({...result,events:undefined}));

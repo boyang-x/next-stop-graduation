@@ -1,0 +1,13 @@
+.job-description{font-size:14px;color:#576e64;line-height:1.6;margin:8px 0 12px}
+.career-type,.offer-rating{display:inline-block;padding:4px 9px;background:#eaf0e2;border-radius:5px;color:#2b644d;font-size:12px;margin:0 6px 5px 0}
+.offer-rating.premium{background:#f3e9cd;color:#7c6025}
+.career-details{font-size:13px;color:#60746b;line-height:1.8;margin:10px 0}
+.career-details summary{cursor:pointer}.career-details p{margin:7px 0}
+.public-posts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
+.public-post{padding:20px;text-align:left;border:1px solid #d2decd;border-radius:12px;background:#fbfcf6;cursor:pointer;color:#26483b}
+.public-post:disabled{opacity:.55;cursor:not-allowed}.public-post:not(:disabled):hover{border-color:#2e6954;background:#edf3e5}
+.public-post strong,.public-post span{display:block}.public-post strong{font-size:17px;margin:8px 0}.public-post span{font-size:13px;line-height:1.7;margin:6px 0;color:#65766d}
+.public-post b{display:block;color:#2e6954;margin-top:12px;font-size:14px}
+.poster-modal{width:min(640px,calc(100vw - 28px));max-height:94vh;overflow:auto}.poster-modal img{display:block;width:100%;height:auto;border-radius:8px;user-select:auto;-webkit-touch-callout:default}
+.poster-tools{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:12px 0}.poster-tools p{font-size:13px;color:#677c70;line-height:1.6}.summary-actions{flex-wrap:wrap}
+@media(max-width:620px){.public-posts{grid-template-columns:1fr}.poster-tools{align-items:flex-start;flex-direction:column}.job-meta{flex-wrap:wrap}.job-top{gap:10px;flex-wrap:wrap}.offer-bottom{gap:12px;flex-wrap:wrap}}
