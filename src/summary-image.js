@@ -1,4 +1,5 @@
 import {characterSVG} from './pixel-art.js';
+import {brandLogo} from './pixel-marks.js';
 // Canvas uses local fonts and inline art only; no uploads or remote dependencies.
 const FONT='"Microsoft YaHei", "PingFang SC", "Noto Sans CJK SC", sans-serif';
 export function wrapText(ctx,value,width,maxLines=3){
@@ -34,7 +35,10 @@ export async function createSummaryImage(r){
     font(size,size>=40);ctx.fillStyle=color;const lines=wrapText(ctx,value,width,maxLines);lines.forEach((line,i)=>ctx.fillText(line,x,y+i*lineHeight));return y+lines.length*lineHeight;
   };
   const rule=y=>{ctx.fillStyle='#c8d4b6';ctx.fillRect(90,y,900,3);};
-  text('下一站，毕业',90,103,32,green);
+  const logoURL=URL.createObjectURL(new Blob([brandLogo()],{type:'image/svg+xml'}));
+  try{const logo=new Image();logo.src=logoURL;await logo.decode();ctx.drawImage(logo,90,98,42,42);}
+  finally{URL.revokeObjectURL(logoURL);}
+  text('下一站，毕业',148,103,32,green);
   text('我的大学生涯',90,174,64);
   text(r.name+' · '+r.personality,90,266,30,muted,700,2,34);
   rule(340);

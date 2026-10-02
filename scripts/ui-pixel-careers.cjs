@@ -1,4 +1,5 @@
 async page=>{
+ await page.goto('http://127.0.0.1:5188/');
  const errors=[];page.on('pageerror',e=>errors.push(e.message));const check=(x,m)=>{if(!x)throw Error(m);};
  const click=(action,index)=>page.locator('[data-action="'+action+'"]'+(index!==undefined?'[data-index="'+index+'"]':'')).first().click();
  const read=()=>page.evaluate(()=>JSON.parse(localStorage.getItem('next-stop-campus-v1')));

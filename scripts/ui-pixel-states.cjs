@@ -1,4 +1,5 @@
 async page => {
+ await page.goto('http://127.0.0.1:5188/');
  const errors=[];page.on('pageerror',e=>errors.push(e.message));const check=(x,m)=>{if(!x)throw Error(m)};
  const click=a=>page.locator('[data-action="'+a+'"]').first().click();
  const load=async mode=>{await page.evaluate(async mode=>{
