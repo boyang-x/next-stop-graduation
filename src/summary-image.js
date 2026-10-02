@@ -1,4 +1,5 @@
-// Canvas uses local fonts only; no uploaded names, remote images or dependencies.
+import {characterSVG} from './pixel-art.js';
+// Canvas uses local fonts and inline art only; no uploads or remote dependencies.
 const FONT='"Microsoft YaHei", "PingFang SC", "Noto Sans CJK SC", sans-serif';
 export function wrapText(ctx,value,width,maxLines=3){
   const lines=[];let line='';
@@ -14,22 +15,33 @@ export async function createSummaryImage(r){
   await document.fonts?.ready;
   const canvas=document.createElement('canvas');canvas.width=1080;canvas.height=1640;
   const ctx=canvas.getContext('2d');if(!ctx)throw new Error('当前浏览器无法生成图片');
-  const ink='#203e37',green='#2e6954',muted='#6e8076';
-  ctx.fillStyle='#f4f5ed';ctx.fillRect(0,0,1080,1640);
-  ctx.fillStyle='#fffef8';ctx.fillRect(48,48,984,1544);
+  const ink='#2d423a',green='#467253',muted='#647567';
+  ctx.fillStyle='#eaf1e2';ctx.fillRect(0,0,1080,1640);
+  ctx.fillStyle='#c9d7b9';ctx.fillRect(58,58,984,1544);
+  ctx.fillStyle='#fffcef';ctx.fillRect(48,48,984,1544);
+  ctx.strokeStyle='#b4c4a6';ctx.lineWidth=4;ctx.strokeRect(48,48,984,1544);
   ctx.fillStyle=green;ctx.fillRect(48,48,984,14);
+  for(let x=48;x<1032;x+=24){ctx.fillStyle=x%48?'#759360':'#a8bd8a';ctx.fillRect(x,62,24,6);}
+  // Decode our own self-contained SVG, then scale in whole pixels.
+  const art=characterSVG({...r,relationship:r.relationship==='单身'?null:{},selectedOffer:r.offer,
+    lotteryTransactions:r.keywords.includes('彩票大奖')?[{revealed:true,prize:10000000}]:[]},'ending');
+  const artURL=URL.createObjectURL(new Blob([art],{type:'image/svg+xml'}));
+  try{const img=new Image();img.src=artURL;await img.decode();ctx.imageSmoothingEnabled=false;
+    ctx.fillStyle='#e2ebd3';ctx.fillRect(818,108,166,210);ctx.drawImage(img,838,121,132,198);
+  }finally{URL.revokeObjectURL(artURL);}
   const font=(size,bold=false)=>{ctx.font=`${bold?'700':'400'} ${size}px ${FONT}`;ctx.textBaseline='top';};
   const text=(value,x,y,size=30,color=ink,width=900,maxLines=2,lineHeight=size*1.5)=>{
     font(size,size>=40);ctx.fillStyle=color;const lines=wrapText(ctx,value,width,maxLines);lines.forEach((line,i)=>ctx.fillText(line,x,y+i*lineHeight));return y+lines.length*lineHeight;
   };
-  const rule=y=>{ctx.strokeStyle='#d9e1d4';ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(90,y);ctx.lineTo(990,y);ctx.stroke();};
+  const rule=y=>{ctx.fillStyle='#c8d4b6';ctx.fillRect(90,y,900,3);};
   text('下一站，毕业',90,103,32,green);
   text('我的大学生涯',90,174,64);
-  text(r.name+' · '+r.personality,90,272,30,muted);
+  text(r.name+' · '+r.personality,90,266,30,muted,700,2,34);
   rule(340);
   text(r.school,90,380,40);text(r.major+' · '+r.ending.degree,90,447,29,muted);
   if(r.originSchool!==r.school)text('本科起点：'+r.originSchool,90,493,25,muted);
-  ctx.fillStyle='#eaf0e3';ctx.fillRect(90,555,900,360);
+  ctx.fillStyle='#e7edda';ctx.fillRect(90,555,900,360);
+  ctx.fillStyle='#91aa74';ctx.fillRect(90,555,8,360);
   text('这一局的下一站',122,585,25,green,836);
   if(r.offer){
     text(r.offer.company,122,637,42,ink,836,2,55);

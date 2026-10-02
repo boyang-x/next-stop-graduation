@@ -5,12 +5,12 @@ export function initScratch(canvas,onComplete){
   const ratio=Math.min(window.devicePixelRatio||1,2),rect=canvas.getBoundingClientRect();
   const width=rect.width,height=rect.height;
   canvas.width=Math.round(width*ratio);canvas.height=Math.round(height*ratio);
-  ctx.scale(ratio,ratio);ctx.fillStyle='#b8c5bc';ctx.fillRect(0,0,width,height);
-  ctx.strokeStyle='#d8e1d9';ctx.lineWidth=3;
-  for(let x=-height;x<width;x+=12){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x+height,height);ctx.stroke();}
+  ctx.scale(ratio,ratio);ctx.fillStyle='#bac9b5';ctx.fillRect(0,0,width,height);
+  ctx.fillStyle='#d7e1cb';
+  for(let y=0;y<height;y+=12)for(let x=0;x<width;x+=12)if((x/12+y/12)%2===0)ctx.fillRect(x,y,6,6);
   ctx.fillStyle='#365547';ctx.textAlign='center';ctx.textBaseline='middle';
-  ctx.font='600 23px "Microsoft YaHei UI",sans-serif';ctx.fillText('刮开这一刻的运气',width/2,height/2-8);
-  ctx.font='15px "Microsoft YaHei UI",sans-serif';ctx.fillText('按住鼠标或用手指来回刮',width/2,height/2+27);
+  ctx.font=`600 ${width<380?19:23}px "Microsoft YaHei UI",sans-serif`;ctx.fillText('刮开这一刻的运气',width/2,height/2-8);
+  ctx.font='14px "Microsoft YaHei UI",sans-serif';ctx.fillText('按住鼠标或用手指来回刮',width/2,height/2+27);
   let previous=null,active=null,done=false,timer=null,lastCheck=0;
   const label=document.querySelector('#scratch-progress');
   const point=e=>{const r=canvas.getBoundingClientRect();return {x:(e.clientX-r.left)*width/r.width,y:(e.clientY-r.top)*height/r.height};};
