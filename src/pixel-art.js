@@ -16,16 +16,22 @@ export function pixelState(s = {}, context = 'campus') {
 }
 
 const rect=(x,y,w,h,color)=>`<rect x="${x}" y="${y}" width="${w}" height="${h}" fill="${color}"/>`;
-const ink='#34453f',skin='#f4c89f',hair='#57443f';
+const ink='#34453f',skin='#f4c89f';
 export function characterSVG(s = {}, context = 'campus') {
-  const v=pixelState(s,context), female=v.gender==='female', lift=v.celebrating?-9:0;
+  const v=pixelState(s,context),female=v.gender==='female',lift=v.celebrating?-9:0;
+  const hairBase='#614535',hairLight='#7d5a43',hairShade='#4d392f';
+  // Reference silhouette: broad swept fringe, restrained shading, original body.
+  const backHair=female?`<path d="M8 10h25v4h4v16h-1v4h6v9H32v-5h-5V29H15v9H7v-4H5V16h3z" fill="${hairBase}"/>`+`<path d="M32 17h5v13h-1v4h6v9h-7v-7h-4z" fill="${hairShade}"/>`+rect(6,23,2,9,hairLight):'';
+  const hairstyle=female
+    ?`<path d="M7 25V12h2V9h3V7h4V5h15v2h4v3h2v5h1v10h-5v-5h-3v-4h-2v-4h-3v3h-3v3h-4v2h-4v-4h-3v4H9v5z" fill="${hairBase}"/>`+`<path d="M10 12V10h4V8h5V7h8v2h-6v2h-5v3h-4v2h-2z" fill="${hairLight}"/>`+`<path d="M32 10h3v3h2v12h-4v-5h-3v-4h-2v-3h4z" fill="${hairShade}"/>`+rect(33,18,5,2,hairShade)+rect(33,17,5,2,'#d8b977')
+    :`<path d="M6 24V18H4v-3h2v-5h2V8h4V6h3V4h15v2h4v3h2v4h2v4h-2v8h-3v-5h-3v-4h-2v-3h-3v2h-4v2h-4v2h-4v-2h-3v6H8v2H6z" fill="${hairBase}"/>`+`<path d="M9 12v-2h4V8h5V6h8v2h-5v3h-5v2h-4v2H8v-3z" fill="${hairLight}"/>`+`<path d="M30 8h4v3h2v4h2v2h-2v8h-3v-5h-3v-5h-2v-3h2z" fill="${hairShade}"/>`;
   const eyes=v.expression==='happy'||v.expression==='joy'
-    ? `<path d="M13 22v-2h4v2M25 22v-2h4v2" fill="none" stroke="${ink}" stroke-width="2"/>`
-    : v.expression==='sleepy' ? rect(13,22,5,2,ink)+rect(25,22,5,2,ink)
-    : rect(14,20,3,5,ink)+rect(25,20,3,5,ink);
-  const mouth=v.expression==='sad'?`<path d="M18 30v-2h6v2" fill="none" stroke="${ink}" stroke-width="2"/>`
-    : v.expression==='joy'?rect(18,27,7,5,ink)+rect(19,30,5,2,'#dc8d91')
-    : v.expression==='happy'?`<path d="M18 27v2h7v-2" fill="none" stroke="${ink}" stroke-width="2"/>`:rect(19,28,5,2,ink);
+    ?`<path d="M13 22v-2h4v2M26 22v-2h4v2" fill="none" stroke="${ink}" stroke-width="2"/>`
+    :v.expression==='sleepy'?rect(13,22,5,2,ink)+rect(26,22,5,2,ink)
+    :rect(14,20,3,5,ink)+rect(27,20,3,5,ink);
+  const mouth=v.expression==='sad'?`<path d="M20 30v-2h5v2" fill="none" stroke="${ink}" stroke-width="1"/>`
+    :v.expression==='joy'?rect(19,27,7,5,ink)+rect(20,30,5,2,'#dc8d91')
+    :v.expression==='happy'?`<path d="M20 27v2h5v-2" fill="none" stroke="${ink}" stroke-width="1"/>`:rect(20,28,5,1,ink);
   const prop=v.prop==='book'?rect(28,41,13,13,ink)+rect(29,42,11,11,'#e3b85e')+rect(31,45,7,2,'#fff0be')
     :v.prop==='resume'?rect(28,39,13,17,ink)+rect(29,40,11,15,'#fff7dc')+rect(31,44,7,2,'#83998c')+rect(31,48,6,2,'#83998c')
     :v.prop==='bag'?rect(29,42,9,14,'#b17a58')+rect(30,40,6,3,'#836148'):'';
@@ -33,7 +39,12 @@ export function characterSVG(s = {}, context = 'campus') {
   const sparkle=v.celebrating?`<g class="pixel-sparkle"><path d="M4 19v8M0 23h8M45 30v8M41 34h8" stroke="#d6a24c" stroke-width="2"/></g>`:'';
   const fatigue=v.tired?`<path d="M2 6h6l-6 6h6M8 0h5L8 5h5" fill="none" stroke="#7d8b8b" stroke-width="1.5"/>`:'';
   const cap=v.prop==='cap'?rect(6,6,31,5,ink)+rect(11,4,22,3,ink)+rect(37,10,2,10,'#d8b556')+rect(36,19,4,4,'#d8b556'):'';
-  return `<svg class="pixel-person" viewBox="0 0 48 72" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="${v.label}" shape-rendering="crispEdges"><title>${v.label}</title>${rect(9,67,32,3,'#30463722')}<g class="pixel-body" transform="translate(0 ${v.tired?2:0})">${female?rect(6,14,31,26,hair)+rect(35,13,6,25,hair)+rect(37,35,6,9,hair):''}${rect(11,56,9,10,'#536379')+rect(23,56,9,10,'#536379')+rect(10,65,11,3,ink)+rect(23,65,11,3,ink)}${rect(9,35,26,23,ink)+rect(11,37,22,19,female?'#d38a83':'#73999a')+rect(18,33,8,7,skin)+rect(19,40,6,15,'#f6ebce')}${rect(5,39+lift,5,14,ink)+rect(6,40+lift,4,12,skin)+rect(35,39+lift,5,14,ink)+rect(35,40+lift,4,12,skin)}${rect(7,10,29,22,ink)+rect(10,12,23,21,skin)+rect(12,33,19,2,skin)+rect(7,7,29,female?9:11,hair)+rect(10,5,22,4,hair)+rect(9,17,female?7:4,4,hair)+rect(28,15,6,4,hair)+(female?rect(35,16,6,3,'#d6b36b'):'')}${eyes}${v.expression==='sad'?`<path d="M12 17l6 2M24 19l6-2" stroke="${ink}" stroke-width="2"/>`:''}${mouth}${rect(11,26,5,2,'#e3a09a')+rect(27,26,5,2,'#e3a09a')}${prop}${cap}</g>${heart}${sparkle}${fatigue}</svg>`;
+  const legs=rect(11,56,9,10,'#536379')+rect(23,56,9,10,'#536379')+rect(10,65,11,3,ink)+rect(23,65,11,3,ink);
+  const torso=rect(9,35,26,23,ink)+rect(11,37,22,19,female?'#d38a83':'#73999a')+rect(18,33,8,7,skin)+rect(19,40,6,15,'#f6ebce');
+  const arms=rect(5,39+lift,5,14,ink)+rect(6,40+lift,4,12,skin)+rect(35,39+lift,5,14,ink)+rect(35,40+lift,4,12,skin);
+  const face=`<path d="${female?'M10 12h25v18h-2v4h-3v2H13v-2h-3v-3H9V20h1z':'M9 12h27v18h-2v4h-3v2H13v-2H9v-3H7V20h2z'}" fill="${skin}"/>`+rect(female?9:6,23,female?2:3,6,'#e4ad7e')+rect(female?34:36,23,female?2:3,6,'#e4ad7e')+rect(female?10:8,26,1,5,'#e4ad7e')+rect(34,26,2,5,'#e4ad7e');
+  const emotion=(v.expression==='sad'?`<path d="M12 19l6-2M25 17l6 2" stroke="${ink}" stroke-width="1"/>`:'')+eyes+mouth+rect(12,26,4,2,'#e3a09a')+rect(29,26,4,2,'#e3a09a');
+  return `<svg class="pixel-person" viewBox="0 0 48 72" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="${v.label}" shape-rendering="crispEdges"><title>${v.label}</title>${rect(9,67,32,3,'#30463722')}<g class="pixel-body" transform="translate(0 ${v.tired?2:0})">${backHair}${legs}${torso}${arms}${face}${hairstyle}${emotion}${prop}${cap}</g>${heart}${sparkle}${fatigue}</svg>`;
 }
 
 export function sceneFor(s = {}) {
