@@ -23,21 +23,27 @@ test('a real perfect written paper stays at 100 without academic preparation dil
 test('zero admission probability is a recorded rejection rather than a missing probability branch',()=>{
  const s=ready();Object.assign(s,{sem:7,month:1,route:'exam',target:'aero',examScore:72,examScoreVersion:2,gpa:0,charm:0});s.policy.published=true;E.ensureCard(s);assert.equal(s.card.choices[0].probability,0);assert.ok(E.choose(s,0));assert.equal(s.feedback.probability.value,0);assert.equal(s.examAssessment.accepted,false);assert.equal(s.admission,null);
 });
-test('long-event plans settle three different months with exactly one reward and budget per month',()=>{
- const s=longWeekend(),manual=structuredClone(s);assert.equal(E.monthlyLeisureSlots(s).length,3);assert.ok(E.submitLeisurePlan(s,['work','work','work']));assert.equal(s.feedback.rows.length,3);assert.equal(s.feedback.leisureReport,true);
- for(let i=0;i<3;i++){assert.ok(E.freeAction(manual,'work'));E.continueFeedback(manual);}
- for(const field of ['balance','energy','mood','study','week','month','calendarTick','pendingWeeks'])assert.equal(s[field],manual[field],field);
- assert.deepEqual(s.finances,manual.finances);assert.equal(s.traits['兼职经历'],3);assert.equal(E.submitLeisurePlan(s,['work','work','work']),false);
- const restored=E.migrateSave(JSON.parse(JSON.stringify(s))),balance=restored.balance;E.continueFeedback(restored);assert.equal(restored.balance,balance);assert.ok(restored.card);assert.equal(restored.feedback,null);
+test('long events stop for one manual choice in every crossed month without duplicate rewards',()=>{
+ const s=longWeekend(),balance=s.balance;
+ for(let month=0;month<3;month++){assert.equal(s.card.kind,'free');assert.equal(s.month,month);assert.equal(s.traits['兼职经历']||0,month);assert.ok(E.freeAction(s,'work'));assert.equal(E.freeAction(s,'work'),false);E.continueFeedback(s);}
+ assert.equal(s.month,2);assert.equal(s.week,2);assert.equal(s.pendingWeeks,0);assert.equal(s.card.kind,'choice');assert.equal(s.traits['兼职经历'],3);assert.equal(s.balance,balance+900);assert.equal(s.finances.filter(x=>x.key==='calendar-1').length,1);assert.equal(s.finances.filter(x=>x.key==='calendar-2').length,1);
 });
-test('manual monthly choice preserves later planned activities and all interactive options',()=>{
- const s=longWeekend();assert.ok(E.submitLeisurePlan(s,['rest','manual','work']));assert.equal(s.feedback.rows.length,1);E.continueFeedback(s);assert.equal(s.card.kind,'free');assert.equal(s.freeTime.manual,true);assert.equal(s.month,1);E.freeAction(s,'lottery');assert.equal(s.card.kind,'lottery');E.freeAction(s,'back');E.freeAction(s,'skip');assert.equal(s.feedback.rows.length,1);assert.equal(s.traits['兼职经历'],1);assert.equal(s.month,2);
+test('manual weekends retain lottery interaction and refresh without choosing the following month',()=>{
+ let s=longWeekend();E.freeAction(s,'rest');E.continueFeedback(s);assert.equal(s.month,1);const balance=s.balance;s=E.migrateSave(s);assert.equal(s.card.kind,'free');assert.equal(s.balance,balance);E.freeAction(s,'lottery');assert.equal(s.card.kind,'lottery');E.freeAction(s,'back');assert.equal(s.month,1);E.freeAction(s,'skip');assert.equal(s.month,2);assert.equal(s.card.kind,'free');assert.equal(s.traits['兼职经历'],undefined);
 });
-test('unavailable planned activities require a replacement without awarding or advancing that month',()=>{
- const s=longWeekend();s.exercisePauseUntil=s.eventClock+10;assert.ok(E.submitLeisurePlan(s,['exercise','rest','rest']));assert.equal(s.month,0);assert.equal(s.freeTime.manual,true);assert.equal(s.traits['运动习惯'],undefined);assert.equal(s.feedback,null);assert.ok(E.freeAction(s,'rest'));
+test('retired future plans are discarded on restore and cannot automatically execute',()=>{
+ const raw=longWeekend();E.freeAction(raw,'rest');E.continueFeedback(raw);raw.monthlyLeisurePlan={'0-1':'manual','0-2':'work'};raw.leisureReportRows=[{text:'old transient row'}];const balance=raw.balance,rng=raw.rng;
+ const s=E.migrateSave(raw);assert.equal(s.monthlyLeisurePlan,undefined);assert.equal(s.leisureReportRows,undefined);assert.equal(s.balance,balance);assert.equal(s.rng,rng);assert.ok(raw.monthlyLeisurePlan);E.freeAction(s,'skip');assert.equal(s.card.kind,'free');assert.equal(s.month,2);assert.equal(s.traits['兼职经历'],undefined);
 });
-test('summer is one selection covering July and August and cannot become a monthly plan',()=>{
- const s=ready();s.sem=2;s.phase='start';E.ensureCard(s);assert.equal(s.freeTime.holiday,'暑假');assert.equal(E.monthlyLeisureSlots(s).length,0);assert.equal(s.finances.filter(x=>x.type==='holiday').length,2);E.freeAction(s,'study');E.continueFeedback(s);assert.equal(s.card.kind,'focus');assert.equal(s.freeTime,null);
+test('an already settled old batch result resumes its saved card without paying again',()=>{
+ const raw=longWeekend();E.freeAction(raw,'rest');E.continueFeedback(raw);raw.leisureReturnCard=raw.card;raw.card=null;raw.feedback={title:'这段时间的课余安排',leisureReport:true,rows:[{date:'九月',text:'已休息'}]};raw.monthlyLeisurePlan={'0-2':'work'};const balance=raw.balance,energy=raw.energy;
+ const s=E.migrateSave(raw);assert.equal(s.feedback.leisureReport,true);assert.equal(s.monthlyLeisurePlan,undefined);E.continueFeedback(s);assert.equal(s.card.kind,'free');assert.equal(s.month,1);assert.equal(s.balance,balance);assert.equal(s.energy,energy);assert.equal(s.leisureReturnCard,undefined);E.freeAction(s,'skip');assert.equal(s.card.kind,'free');assert.equal(s.month,2);assert.equal(s.traits['兼职经历'],undefined);
+});
+test('multiple manually selected months still yield to entrance-exam milestones',()=>{
+ const s=ready();Object.assign(s,{sem:6,month:2,week:2,route:'exam',pendingWeeks:6,weekendDue:true});s.policy.published=true;E.ensureCard(s);assert.equal(s.card.kind,'free');E.freeAction(s,'skip');assert.equal(s.card.kind,'quiz');assert.equal(s.month,3);assert.equal(s.quiz.purpose,'exam');
+});
+test('summer is one selection covering July and August with two monthly budgets',()=>{
+ const s=ready();s.sem=2;s.phase='start';E.ensureCard(s);assert.equal(s.freeTime.holiday,'暑假');assert.equal(s.finances.filter(x=>x.type==='holiday').length,2);E.freeAction(s,'study');E.continueFeedback(s);assert.equal(s.card.kind,'focus');assert.equal(s.freeTime,null);
 });
 test('pending old interview migrates once without RNG changes or rerolling acknowledged outcomes',()=>{
  const s=ready();Object.assign(s,{sem:7,month:1,route:'exam',target:'aero',examScore:89,quizHistory:[{purpose:'exam',weightedScore:100}],card:{id:'exam-interview',kind:'choice',choices:[]}});const rng=s.rng;const restored=E.migrateSave(s);assert.equal(restored.examScore,100);assert.equal(restored.rng,rng);assert.equal(restored.card.choices[0].probability,1);E.choose(restored,0);const current=E.migrateSave(restored);assert.deepEqual(current.feedback,restored.feedback);assert.equal(current.rng,restored.rng);

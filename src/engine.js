@@ -117,6 +117,8 @@ export function migrateSave(raw){
   if(!raw||![4,5,SAVE_VERSION].includes(raw.version)||!PERSONALITIES.some(p=>p.id===raw.personality)||!SCHOOLS.some(x=>x.id===raw.school)||!MAJORS[raw.major]||!Array.isArray(raw.history)||!Array.isArray(raw.log))return null;
   const s=structuredClone(raw);s.romancePreference=s.gender==='female'?'male':'female';if(s.candidate?.gender!==s.romancePreference)s.candidate=null;migrateCredits(s,{events:EVENTS});initializeLife(s);initializeStory(s);s.version=SAVE_VERSION;s.notifications??=[];
   s.monthlyFreeDone??={};for(const key of Object.keys(s.hooks))if(key.startsWith('weekend-')&&s.hooks[key])s.monthlyFreeDone[key.slice(8)]=true;
+  // Future batch choices are retired; completed feedback and rewards remain intact.
+  delete s.monthlyLeisurePlan;delete s.leisureReportRows;
   if(s.notification){s.notifications.push(s.notification);delete s.notification;}
   const migrationRng=s.rng;updateRanks(s);s.rng=migrationRng;
   // Unresolved cards store a copy of authored content. Refresh that copy without
@@ -434,11 +436,8 @@ export function ensureCard(s) {
     s.monthlyFreeDone[key]=true;s.hooks[`weekend-${key}`]=true;s.weekendDue=false;
     if(s.lastLeisureTick!==(s.calendarTick||0)){
       maybeRelationshipConflict(s);s.freeTime={consume:false,leisure:true,scheduled:true};freeCard(s);
-      if(s.monthlyLeisurePlan?.[key]&&s.monthlyLeisurePlan[key]!=='manual')runPlannedLeisure(s,key);
-      else if(s.monthlyLeisurePlan?.[key]){delete s.monthlyLeisurePlan[key];s.freeTime.manual=true;}
       return;
     }
-    if(s.monthlyLeisurePlan?.[key])delete s.monthlyLeisurePlan[key];
   }
   if(s.hooks['weekend-'+key])s.weekendDue=false;
   if(s.pendingWeeks>0){advancePendingWeeks(s);ensureCard(s);return;}
@@ -590,44 +589,6 @@ export function maybeRelationshipConflict(s){
   queueFollowUp(s,{id:'love-unexpected-conflict',clearFlags:['conflictPending','conflictAvoided','conflictDiscussed'],after:0,expires:10,priority:4},'relationship');return true;
 }
 function freeCard(s,lottery=false){const title=s.freeTime?.holiday?`${s.freeTime.holiday}，给自己一点时间`:s.freeTime?.leisure?'本月的一个周末':'这个下午，你还有一点时间';s.card={id:'free-time',kind:lottery?'lottery':'free',group:'common',title:lottery?'便利店的刮刮乐柜台':title,text:lottery?'挑一张，刮开看看运气。':s.freeTime?.holiday?`选择整个假期的一次主要安排${s.freeTime.holiday==='暑假'?'，覆盖七月—八月（8周）':''}。假期收支按自然月分别结算，额外消费单独支付。`:'选一件想做的事，把时间留给自己。'};}
-export function monthlyLeisureSlots(s){
-  if(!s.freeTime?.scheduled||s.freeTime.manual||s.card?.kind!=='free'||s.freeTime.holiday)return [];
-  const last=Math.min(4,s.month+Math.floor(((s.week||0)+(s.pendingWeeks||0))/MONTH_UNITS));
-  const slots=[];
-  for(let month=s.month;month<=last;month++){
-    const key=`${s.sem}-${month}`;
-    if(month===s.month||!s.monthlyFreeDone?.[key])slots.push({key,sem:s.sem,month,label:monthLabel(academicMonth({...s,month}))});
-  }
-  return slots;
-}
-export function submitLeisurePlan(s,actions){
-  const slots=monthlyLeisureSlots(s);
-  if(s.feedback||slots.length<2||!Array.isArray(actions)||actions.length!==slots.length)return false;
-  const allowed=['rest','walk','study','work','exercise','skip','manual'];
-  if(actions.some(a=>!allowed.includes(a)))return false;
-  s.monthlyLeisurePlan??={};
-  slots.forEach((slot,i)=>{s.monthlyLeisurePlan[slot.key]=actions[i];});
-  if(actions[0]==='manual'){delete s.monthlyLeisurePlan[slots[0].key];s.freeTime.manual=true;return true;}
-  runPlannedLeisure(s,slots[0].key);
-  return true;
-}
-function runPlannedLeisure(s,key){
-  const action=s.monthlyLeisurePlan[key];delete s.monthlyLeisurePlan[key];
-  const date=dateName(s);let result;
-  if(action==='skip'){s.lastLeisureTick=s.calendarTick||0;log(s,'空闲时光','你保留了一段没有安排的时间。');result={text:'不做额外安排',effects:{}};}
-  else if(freeAction(s,action)){result=s.feedback;s.feedback=null;}
-  else {s.freeTime.manual=true;log(s,'课余安排需要调整','原定活动在当前状态下无法进行，请重新安排本月周末。','notice');return;}
-  s.leisureReportRows??=[];s.leisureReportRows.push({date,text:result.text,effects:result.effects||{}});
-  finishFreeTime(s);ensureCard(s);
-  if(s.leisureReportRows?.length&&!s.feedback&&!s.ending){
-    const rows=s.leisureReportRows;delete s.leisureReportRows;
-    s.leisureReturnCard=s.card;s.card=null;
-    const effects={};for(const row of rows)for(const [name,value] of Object.entries(row.effects))if(typeof value==='number')effects[name]=roundState((effects[name]||0)+value);
-    s.feedback={title:'这段时间的课余安排',text:`已完成 ${rows.length} 个月的安排，每月分别结算。`,rows,effects,consume:false,leisureReport:true};
-    const bills=s.notifications?.filter(n=>n.title==='本月生活账单')||[];
-    if(bills.length>1)s.notifications=[...s.notifications.filter(n=>n.title!=='本月生活账单'),{title:'这段时间的生活账单',text:bills.map(n=>n.text).join('；')}];
-  }
-}
 export const FREE_ACTIVITIES=AFTERNOON_ACTIVITIES;
 function finishFreeTime(s){
   const f=s.freeTime;if(f?.holiday)s.holidayStudy=s.study;s.freeTime=null;

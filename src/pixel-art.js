@@ -92,6 +92,8 @@ export function pixelPortrait(s = {}, context = sceneFor(s)) {
 
 export function pixelIcon(id) {
   const shapes={
+    log:rect(5,3,14,19,ink)+rect(7,5,10,15,'#f3e6bc')+rect(9,1,6,5,'#819b74')+rect(9,8,6,2,'#758f90')+rect(9,12,6,2,'#758f90')+rect(9,16,4,2,'#758f90'),
+    rules:rect(3,4,8,16,'#758f90')+rect(13,4,8,16,'#819b74')+rect(5,6,5,11,'#fff2cf')+rect(14,6,5,11,'#fff2cf')+rect(11,5,2,17,ink)+rect(6,8,3,1,ink)+rect(6,11,3,1,ink)+rect(15,8,3,1,ink)+rect(15,11,3,1,ink),
     study:rect(3,5,8,14,'#758f90')+rect(13,5,8,14,'#758f90')+rect(5,7,5,10,'#fff2cf')+rect(14,7,5,10,'#fff2cf')+rect(11,6,2,15,ink),
     project:rect(4,4,16,14,'#759187')+rect(6,6,12,9,'#d3e2c4')+rect(11,18,2,3,ink)+rect(7,21,10,2,ink),
     social:rect(5,4,5,6,'#d5a878')+rect(15,7,5,6,'#d5a878')+rect(3,11,9,9,'#9b8781')+rect(13,14,9,7,'#809b88'),

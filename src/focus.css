@@ -10,9 +10,6 @@ body.focus-game {height:100dvh;min-height:0;overflow:hidden;background:var(--bg)
 .focus-menu {position:absolute;right:24px;top:58px;z-index:12;border:2px solid var(--line);background:var(--paper);box-shadow:3px 3px 0 var(--pixel-shadow);padding:5px;min-width:160px;}
 .focus-menu[hidden] {display:none;}
 .focus-menu button {display:block;width:100%;background:transparent;border:0;min-height:44px;text-align:left;padding:6px 12px;font-size:13px;color:var(--ink);}
-.game-tools {position:absolute;top:88px;bottom:20px;left:max(16px,calc((100vw - 1220px)/2));width:74px;display:flex;flex-direction:column;gap:16px;z-index:2;}
-.game-tools button {background:transparent;border:0;min-height:52px;padding:6px;font-size:12px;color:var(--muted);}
-.game-tools button:hover {color:var(--green);background:var(--light-green);}
 .focus-game .game-layout {flex:1;min-height:0;width:100%;max-width:1100px;margin:0 auto;padding:18px 30px 14px 104px;display:flex;gap:22px;justify-content:center;align-items:stretch;overflow:hidden;}
 .focus-game .main-column {min-height:0;max-width:650px;flex:1;display:flex;flex-direction:column;gap:0;}
 .focus-game .chapter-heading {display:none;}
@@ -50,7 +47,7 @@ body.focus-game {height:100dvh;min-height:0;overflow:hidden;background:var(--bg)
 .focus-game .activity-tile {min-height:84px;padding:12px;}
 .focus-game .activity-tile strong {font-size:15px;line-height:1.5;}
 .focus-game .activity-tile span {font-size:12px;line-height:1.65;}
-.focus-game .free-skip,.focus-game .lottery-back,.focus-game .leisure-manual {min-height:44px;width:100%;font-size:12px;margin:0;}
+.focus-game .free-skip,.focus-game .lottery-back {min-height:44px;width:100%;font-size:12px;margin:0;}
 .free-caption {font-size:12px;color:var(--muted);margin:0 0 8px;line-height:1.6;}
 .focus-game .focus-grid,.focus-game .target-grid {gap:10px;}
 .focus-game .focus-option,.focus-game .target-option {padding:12px;}
@@ -71,11 +68,6 @@ body.focus-game {height:100dvh;min-height:0;overflow:hidden;background:var(--bg)
 .focus-game .ticket-card h3 {font-size:23px;}
 .focus-game .lottery-rules {font-size:12px;}
 .focus-game .scratch-stage {height:154px;}
-.leisure-plan {display:grid;gap:12px;}
-.leisure-plan label {padding:13px;border:1px solid var(--line);background:var(--paper);display:grid;gap:8px;font-size:14px;}
-.leisure-plan select {min-height:44px;width:100%;background:var(--paper);border:1px solid var(--line);padding:8px;font-size:16px;color:var(--ink);border-radius:0;}
-.leisure-plan-tools {display:flex;gap:10px;flex-wrap:wrap;}
-.leisure-plan-tools button {min-height:44px;font-size:12px;}
 .leisure-rows {padding:0;list-style:none;font-size:13px;line-height:1.8;}
 .leisure-rows li {margin-bottom:10px;}
 .leisure-rows strong {display:block;color:var(--green);font-size:12px;}
@@ -100,7 +92,6 @@ body.focus-game {height:100dvh;min-height:0;overflow:hidden;background:var(--bg)
 .profile-dialog .wallet {margin-top:12px;padding:12px 0;}
 .profile-dialog .relationship-vital {margin-top:12px;}
 .profile-dialog .academic-heading {margin-top:10px;}
-.profile-dialog .profile-pin {min-height:44px;margin:10px 0 0;font-size:12px;flex-shrink:0;}
 body.dialog-open {overflow:hidden;}
 .modal-backdrop {position:fixed;inset:0;display:flex;align-items:center;justify-content:center;z-index:30;overscroll-behavior:contain;}
 .modal {max-height:calc(100dvh - 40px);overflow:auto;}
@@ -111,7 +102,6 @@ body.dialog-open {overflow:hidden;}
  .focus-date strong {font-size:14px;}
  .focus-date small {font-size:11px;}
  .focus-menu {right:12px;top:54px;}
- .game-tools {display:none;}
  .focus-game .game-layout {padding:10px 12px max(9px,env(safe-area-inset-bottom));max-width:620px;flex-direction:row;}
  .focus-game .main-column {width:100%;}
  .play-vitals {gap:12px;padding:0 3px 8px;font-size:11px;}
@@ -145,7 +135,6 @@ body.dialog-open {overflow:hidden;}
  .focus-game .public-posts {grid-template-columns:1fr;}
  .focus-game .modal-backdrop {padding:12px;}
  .profile-dialog {padding:14px 16px;max-height:calc(100dvh - 24px);}
- .profile-dialog .profile-pin {display:none;}
  .profile-dialog .compact-vitals {grid-template-columns:1fr 1fr;}
  .profile-dialog .vital-charm {grid-column:1/-1;}
  .profile-dialog .modal-body {font-size:13px;}

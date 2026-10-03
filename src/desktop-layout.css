@@ -1,0 +1,34 @@
+/* Desktop-only layout. Keep the accepted mobile layout in focus.css. */
+.desktop-game-header {display:none;}
+@media(min-width:821px){
+ .focus-game .mobile-game-header {display:none;}
+ .focus-game .desktop-game-header {display:grid;grid-template-columns:240px 1fr 240px;align-items:center;gap:16px;flex-shrink:0;min-height:76px;padding:12px max(24px,calc((100vw - 1176px)/2));border-bottom:2px solid var(--line);background:var(--paper);}
+ .desktop-game-header .brand {gap:12px;font-size:20px;letter-spacing:0;min-height:44px;}
+ .desktop-game-header .brand-mark {width:38px;height:38px;border:2px solid var(--ink);border-radius:0;background:#f4edcf;box-shadow:3px 3px 0 var(--pixel-shadow);}
+ .desktop-game-header .brand-mark img {width:100%;height:100%;}
+ .desktop-game-tools {display:flex;justify-content:flex-end;gap:10px;}
+ .desktop-game-tools button {display:flex;align-items:center;gap:7px;min-height:44px;padding:8px 11px;background:var(--paper);border:2px solid var(--line);box-shadow:2px 2px 0 var(--pixel-shadow);font-size:13px;white-space:nowrap;}
+ .desktop-game-tools button:hover {background:var(--light-green);border-color:var(--green);}
+ .desktop-game-tools .pixel-icon {width:22px;height:22px;flex-shrink:0;}
+ .focus-game .game-layout {max-width:1240px;padding:22px 32px 20px;gap:28px;}
+ .focus-game .main-column {max-width:none;}
+ .focus-game .main-column>.play-vitals {display:none;}
+ .focus-game .main-column>.pixel-scene {height:clamp(110px,21dvh,190px);}
+ .focus-game .right-rail {display:block;width:292px;height:100%;overflow-y:auto;}
+ .focus-game .character-card {padding:20px;min-height:100%;}
+ .focus-game .character-heading {padding-bottom:14px;}
+ .focus-game .character-content {padding-top:14px;}
+ .focus-game .event-reader {padding:22px 26px 14px;}
+ .focus-game .event-actions {padding:12px 24px 20px;}
+}
+@media(min-width:821px) and (max-width:1100px){
+ .focus-game .desktop-game-header {grid-template-columns:205px 1fr 215px;padding:12px 24px;gap:12px;}
+ .desktop-game-header .brand {font-size:18px;gap:9px;}
+ .desktop-game-tools {gap:8px;}
+ .desktop-game-tools button {gap:5px;padding:8px;font-size:12px;}
+ .focus-game .game-layout {padding:18px 24px;gap:20px;}
+ .focus-game .right-rail {width:260px;}
+ .focus-game .character-card {padding:16px;}
+ .focus-game .event-reader {padding:18px 20px 12px;}
+ .focus-game .event-actions {padding:10px 18px 18px;}
+}

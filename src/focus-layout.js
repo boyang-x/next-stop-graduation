@@ -9,14 +9,14 @@ export function prepareFocusSurface(){
   const next=source.querySelector('.quiz-result .primary');
   if(next)next.remove();
   for(const element of [...source.children]){
-    if(element.matches('.choices,.primary,.job-submit,.free-skip,.lottery-back,.leisure-manual'))actions.append(element);
+    if(element.matches('.choices,.primary,.job-submit,.free-skip,.lottery-back'))actions.append(element);
     else if(element.matches('.event-text')&&!element.textContent.trim())element.remove();
     else reader.append(element);
   }
   if(next)actions.append(next);
   paper.replaceChildren(reader,actions);
   if(!actions.childElementCount)actions.hidden=true;
-  paper.dataset.view=paper.querySelector('.free-picker')?'free':paper.querySelector('.leisure-plan')?'plan':outcome?'result':'event';
+  paper.dataset.view=paper.querySelector('.free-picker')?'free':outcome?'result':'event';
 }
 
 export function profileSections(markup,activeTab){
