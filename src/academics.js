@@ -1,6 +1,7 @@
 import {energyPercent} from './personality.js';
+import {refreshCreditAcademics} from './score-ledger.js';
 const tenth=n=>Math.round(n*10)/10;
-export const coCurricularScore=activity=>tenth(Math.max(0,Math.min(100,50+activity*2.5)));
+export const coCurricularScore=points=>tenth(Math.max(0,Math.min(100,points)));
 export const combinedScore=(grade,comp)=>tenth(grade*.8+comp*.2);
 // Early preparation remains effective. Later practice still accumulates, with
 // a smooth marginal return instead of truncating an entire action at 36.
@@ -13,6 +14,7 @@ export function studyContribution(study){return study<=18?study*.58:18*.58+10*(1
 export function aggregateAcademics(s){
   const degree=s.grades.filter(g=>s.sem>=8&&s.sem<14?g.sem>=8&&g.sem<14:g.sem<8);
   if(degree.length){s.gpa=tenth(degree.reduce((n,g)=>n+g.grade,0)/degree.length);s.comp=tenth(degree.reduce((n,g)=>n+g.comp,0)/degree.length);}
+  if(s.creditLedger)refreshCreditAcademics(s);
   s.combined=combinedScore(s.gpa,s.comp);
 }
 export function semesterGrade(s,roll=.5){

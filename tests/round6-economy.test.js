@@ -5,7 +5,7 @@ import {EVENTS} from '../src/content.js';
 import {internshipTerms} from '../src/economy.js';
 import {prepareStoryEvent} from '../src/story.js';
 function ready(){const s=createGame({background:'ordinary',school:'aero',major:'cs'},62);s.hooks['0-0-committee']=true;s.notices=[];return s;}
-function month(s){s.card={kind:'choice',consume:true,choices:[{text:'完成一个月的安排',duration:4,result:'完成'}]};s.feedback=null;choose(s,0);continueFeedback(s);while(s.card?.kind==='notice')advanceNotice(s);}
+function month(s){s.monthlyFreeDone??={};s.monthlyFreeDone[`${s.sem}-${s.month}`]=true;s.card={kind:'choice',consume:true,choices:[{text:'完成一个月的安排',duration:4,result:'完成'}]};s.feedback=null;choose(s,0);continueFeedback(s);while(s.card?.kind==='notice')advanceNotice(s);}
 test('monthly allowance is uniform and focus does not charge optional consumption',()=>{
   const states=['balanced','scholar','social','practical','relaxed'].map(personality=>createGame({personality,school:'aero'},62));
   for(const s of states){const before=s.balance;chooseFocus(s,'study');assert.equal(s.balance,before);month(s);assert.equal(s.balance,before+300);assert.ok(!s.finances.some(f=>f.type==='consumption'));}

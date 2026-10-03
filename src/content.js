@@ -1,5 +1,6 @@
 import {enrichCareers} from './career-content.js';
 import {applyRound8Content} from './round8-content.js';
+import {clarifyScenes} from './scene-clarity.js';
 import {routeQuestions} from './question-routing.js';
 import {polishContent,polishQuestions} from './text-polish.js';
 import {applyCharacterContent} from './character-content.js';
@@ -252,6 +253,25 @@ polishQuestions(QUESTIONS);
 routeQuestions(QUESTIONS);
 
 applyRound8Content(EVENTS);
+clarifyScenes(EVENTS);
+calibrateEvents(EVENTS);
+installParticipation(EVENTS);
+EVENTS.push(...RELATIONSHIP_EXPANSION,...MISFORTUNE_EVENTS);
+tuneRelationshipEvents(EVENTS);
+reviseOptions(EVENTS);
+installContentChains(EVENTS);
+lengthenPeriods(EVENTS);
+EVENTS.push(...COMMON_EXPANSION,...SCHOOL_EXPANSION,...MAJOR_EXPANSION,...GRADUATE_EXPANSION,...RELATIONSHIP_EXPANSION_12,...CADRE_EXPANSION,CAT_GRADUATION_EVENT);
 
 TAGS['教学实践']={...TAGS['教育实习'],description:'课程试讲、课堂见习与实际教学活动形成的专业实践；不等于已完成有工资的岗位实习。'};
 enrichCareers(JOBS);
+import {calibrateEvents} from './balance-rules.js';
+import {installParticipation} from './participation.js';
+import {RELATIONSHIP_EXPANSION,tuneRelationshipEvents} from './relationship-expansion.js';
+import {MISFORTUNE_EVENTS} from './misfortune-events.js';
+import {COMMON_EXPANSION} from './round12-common.js';
+import {SCHOOL_EXPANSION,MAJOR_EXPANSION} from './round12-campus-major.js';
+import {GRADUATE_EXPANSION} from './round12-graduate.js';
+import {RELATIONSHIP_EXPANSION_12,CADRE_EXPANSION} from './round12-relationships-cadre.js';
+import {reviseOptions,installContentChains,lengthenPeriods} from './round12-rules.js';
+import {CAT_GRADUATION_EVENT} from './campus-cat.js';

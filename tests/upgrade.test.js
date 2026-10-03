@@ -20,8 +20,8 @@ test('each prize boundary is exclusive and every distribution sums to one',()=>{
 });
 
 test('multiple vacant choices in one semester permit multiple tickets, without extra monthly support',()=>{
-  const s=createGame({background:'ordinary'},91);const initial=s.balance;for(let i=0;i<4;i++){vacant(s);choose(s,0);continueFeedback(s);assert.equal(s.card.kind,'free');freeAction(s,'lottery');const before=s.balance;buyTicket(s,'small');const tx=s.lotteryTransactions.at(-1);revealTicket(s);continueFeedback(s);assert.equal(s.balance,before-tx.price+tx.prize+(i===3?300:0));}
-  assert.equal(s.lotteryTransactions.length,4);assert.equal(s.sem,0);assert.equal(s.month,1);assert.equal(s.freeTime,null);assert.equal(s.balance,initial-4*LOTTERY_TICKETS.find(t=>t.id==='small').price+s.lotteryTransactions.reduce((n,t)=>n+t.prize,0)+300);
+  const s=createGame({background:'ordinary'},91);const initial=s.balance;for(let i=0;i<4;i++){vacant(s);choose(s,0);continueFeedback(s);assert.equal(s.card.kind,'free');freeAction(s,'lottery');const before=s.balance;buyTicket(s,'small');const tx=s.lotteryTransactions.at(-1);revealTicket(s);continueFeedback(s);assert.equal(s.balance,before-tx.price+tx.prize+(i%2===1?300:0));}
+  assert.equal(s.lotteryTransactions.length,4);assert.equal(s.sem,0);assert.equal(s.month,2);assert.ok(s.freeTime.scheduled);assert.equal(s.balance,initial-4*LOTTERY_TICKETS.find(t=>t.id==='small').price+s.lotteryTransactions.reduce((n,t)=>n+t.prize,0)+600);
 });
 
 test('browse/cancel do not charge, insufficient balance cannot purchase, and rest creates no new time',()=>{

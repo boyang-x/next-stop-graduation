@@ -11,10 +11,16 @@ import { SCHOOLS, MAJORS, EVENTS, JOBS, QUESTIONS, PEOPLE, TAGS, FOCUSES } from 
 import { drawPrize, ticketOf } from './lottery.js';
 import { CADRE_ROLES, cadreRole, cadreAvailable, initializeLife, normalizeRelationship, changeIntimacy, recordRoutine, routinePresent, importantExperiences, canonicalTag, monthlyBudget, policyResult } from './life-rules.js';
 export { importantExperiences } from './life-rules.js';
-import { clearQueuedFlags, eventExposureKey, initializeStory, scopedEligible, flagsFor, queueFollowUp, pruneStories, nextFollowUp, rememberChoice, prepareStoryEvent, markEventShown } from './story.js';
+import { scopeKey, clearQueuedFlags, eventExposureKey, initializeStory, scopedEligible, flagsFor, queueFollowUp, pruneStories, nextFollowUp, rememberChoice, prepareStoryEvent, markEventShown } from './story.js';
 
-export const SAVE_VERSION = 4;
+import {CADRE_POINTS,initializeCredits,migrateCredits,yearScore,lifetimeCredits,awardCredit,settleCadreCredits,refreshCreditAcademics} from './score-ledger.js';
+import {applyExercise,workloadCost,naturalMood,changeMood} from './balance-rules.js';
+import {registerProgram,programAvailable,programAction,nextProgramCard,nextCompetitionUpgrade} from './participation.js';
+import {graduationCatCard,finishCatGraduation,currentCatPhoto} from './campus-cat.js';
+import {submitProjectApplication,projectApplicationCard} from './project-application.js';
+export const SAVE_VERSION = 6;
 export const MONTH_UNITS = 4;
+const graduateEventIds=new Set(EVENTS.filter(e=>e.group==='graduate').map(e=>e.id));
 import { AFTERNOON_ACTIVITIES, activitiesFor } from './activities.js';
 import { studyGain, coCurricularScore, combinedScore, aggregateAcademics, semesterGrade, outstandingCourses, degreeCourses, recordAcademicFailure, repairAcademicCourse } from './academics.js';
 export { activitiesFor } from './activities.js';
@@ -39,8 +45,9 @@ export function applyEffects(s,effects={}) {
   if(effects.tags?.includes('共同回忆')&&effects.intimacy===undefined)changeIntimacy(s,3,{contact:true});
   if(effects.study>0)s.termBehavior.studyActions++;
   if(effects.absence>0)s.termBehavior.missed+=effects.absence;
-  if(effects.energy)changeEnergy(s,effects.energy);
-  if(effects.mood)s.mood=roundState(clamp(s.mood+effects.mood));
+  if(effects.energy)changeEnergy(s,workloadCost(s,effects.energy));
+  if(effects.exercise)applyExercise(s);
+  if(effects.mood)changeMood(s,effects.mood);
   if(effects.charm)s.charm=roundState(clamp(s.charm+effects.charm));
   if (effects.balance) s.balance=Math.max(0,Math.round(s.balance+effects.balance));
   if (effects.study) {const factor=effects.study>0?initialFactor*trait.study:1;s.study=Math.max(-12,s.study+studyGain(s.study,effects.study*factor));}
@@ -53,10 +60,48 @@ export function createGame(config={}, seed=Date.now()) {
   const trait=PERSONALITIES.find(x=>x.id===config.personality)||PERSONALITIES[0];
   const gender=config.gender==='female'?'female':'male';
   const s={version:SAVE_VERSION,gender,romancePreference:gender==='female'?'male':'female',eventSlot:0,peers:{},freeTime:null,lotteryTransactions:[],quizHistory:[],name:String(config.name||'新同学').trim().slice(0,16)||'新同学',school:school.id,originSchool:school.id,major,personality:trait.id,charm:trait.charm,
-    sem:0,month:0,phase:'start',rng:(Number(seed)>>>0)||1234567,balance:INITIAL_BALANCE,energy:roundState(trait.energyMax*.8),mood:75,grade:78,gpa:78,comp:50,combined:72.4,rank:150,combinedRank:170,cohort:300,study:0,activity:0,grades:[],history:[],log:[],seen:{},hooks:{},relationship:null,candidate:null,romances:[],focus:'study',route:'undecided',target:null,attempt:1,admission:null,examScore:null,selectedJobs:[],jobResults:[],selectedOffer:null,quiz:null,card:null,feedback:null,ending:null,deferred:null,notices:[],sequence:0};
-  initializeLife(s);updateRanks(s);
+    sem:0,month:0,phase:'start',rng:(Number(seed)>>>0)||1234567,balance:INITIAL_BALANCE,energy:roundState(trait.energyMax*.8),mood:65,grade:78,gpa:78,comp:0,combined:62.4,rank:150,combinedRank:170,cohort:300,study:0,activity:0,grades:[],history:[],log:[],seen:{},hooks:{},relationship:null,candidate:null,romances:[],focus:'study',route:'undecided',target:null,attempt:1,admission:null,examScore:null,selectedJobs:[],jobResults:[],selectedOffer:null,quiz:null,card:null,feedback:null,ending:null,deferred:null,notices:[],sequence:0};
+  initializeLife(s);initializeCredits(s);s.notifications=[];updateRanks(s);
   log(s,'录取通知书',`你成为了${school.name}${MAJORS[major].name}专业的新生。特质：${trait.name}。每月家里提供 ¥${MONTHLY_ALLOWANCE} 生活费。`,'notice');
   ensureCard(s); return s;
+}
+export function peerCreditScore(peer,s){
+  const current=Math.floor((s.sem>=8&&s.sem<14?s.sem-8:Math.min(7,s.sem))/2),month=s.sem%2?5+s.month:s.month;
+  peer.creditYears??={};let sum=0;
+  for(let year=0;year<=current;year++){
+    if(!peer.creditYears[year]){
+      const seed=Math.round((peer.activity||0)*100000)+(Math.round(peer.grade*100)||0);
+      const roll=k=>{let n=Math.imul(seed^(year*7919+k*104729),1597334677)>>>0;n^=n>>>16;return (n>>>0)/4294967296;};
+      const rows=[];
+      for(let i=0;i<4;i++)if(roll(i)<.35)rows.push({category:'service',points:1,month:2+i*2});
+      if(roll(5)<.38)rows.push({category:'certificate',points:1,month:4});
+      if(roll(6)<.28)rows.push({category:'cadre',points:year>=2&&roll(7)<.12?6:year>=1&&roll(7)<.3?4:roll(7)<.5?3:2,month:10});
+      if(roll(8)<.24)rows.push({category:'competition',points:roll(9)<.08?6:roll(9)<.3?3:1,month:8});
+      peer.creditYears[year]=rows;
+    }
+    sum+=Math.min(100,peer.creditYears[year].filter(x=>year<current||x.month<=month).reduce((n,x)=>n+x.points,0));
+  }
+  return roundState(sum/(current+1));
+}
+export function nextCandidateEvent(s){
+  const pool=EVENTS.filter(e=>e.storyScope==='candidate'&&!e.followOnly&&eventEligible(s,e));
+  // An exhausted pool can remain a friendship. Do not replay a confession card.
+  return pool.length?sample(s,pool):{id:'candidate-checkin',kind:'choice',group:'romance',category:'social',storyScope:'candidate',title:'按现在的关系，重新安排联系',text:'你们已经相处过一段时间。最近的熟悉、信任和好感仍然保留，现在可以具体安排下一次联系，也可以明确关系方向。',choices:[
+    {text:'约一次免费散步，聊各自最近的新变化',effects:{energy:-5,mood:2},candidateDelta:{familiarity:2,trust:2},result:'这次相处围绕各自最近的变化展开，你没有重复催促对方确认关系。'},
+    {text:'认真表达好感，接受对方自己的选择',effects:{energy:-4},probability:{base:.4,candidate:.003,charm:.001,mood:.001},success:{text:'对方愿意认真发展这段关系，你们开始交往。',action:'date'},failure:{text:'对方希望保持朋友关系，你接受了这个回答。',action:'clearCandidate'}},
+    {text:'说明希望保持普通朋友，不再继续发展恋爱',effects:{mood:1},action:'clearCandidate',result:'你们明确了相处方向，各自继续自己的生活。'},
+  ]};
+}
+export function arriveEvent(s,e){
+  if(!e.arrivalEffects)return;
+  s.arrivals??={};const key=(e.storyScope==='relationship'?s.relationship?.id:'run')+':'+e.id;
+  if(s.arrivals[key])return;s.arrivals[key]=true;
+  // Fitness reduces the cost of chosen workloads, not an accident's actual loss.
+  const {energy,...otherEffects}=e.arrivalEffects;
+  if(energy)changeEnergy(s,energy);applyEffects(s,otherEffects);
+  log(s,e.title+' · 突发变化',e.text,'event',{effects:e.arrivalEffects});
+  if(e.severity!=='relationship'){s.incidents??=[];s.incidents.push({id:e.id,sem:s.sem,severity:e.severity,clock:s.eventClock});s.lastIncidentClock=s.eventClock;}
+  if(e.id==='incident-sprain'||e.id==='incident-cold')s.exercisePauseUntil=s.eventClock+3;
 }
 function normal(s) { return Math.sqrt(-2*Math.log(Math.max(.000001,random(s))))*Math.cos(2*Math.PI*random(s)); }
 export function updateRanks(s) {
@@ -64,12 +109,26 @@ export function updateRanks(s) {
   if(!s.peers[key])s.peers[key]=Array.from({length:s.cohort-1},()=>({grade:clamp(schoolOf(s).cohortMean+(isGrad(s)?1:0)+normal(s)*5.5),activity:random(s)*16}));
   const peers=s.peers[key];const peerGrades=peers.map((p,i)=>clamp(p.grade+Math.sin(i+s.sem)*.6));
   s.rank=1+peerGrades.filter(x=>x>s.gpa).length;
-  s.combined=combinedScore(s.gpa,s.comp);
-  s.combinedRank=1+peerGrades.filter((x,i)=>combinedScore(x,coCurricularScore(peers[i].activity))>s.combined).length;
+  refreshCreditAcademics(s);s.combined=combinedScore(s.gpa,s.comp);
+  s.combinedRank=1+peerGrades.filter((x,i)=>combinedScore(x,coCurricularScore(peerCreditScore(peers[i],s)))>s.combined).length;
 }
 export function migrateSave(raw){
-  if(!raw||raw.version!==SAVE_VERSION||!PERSONALITIES.some(p=>p.id===raw.personality)||!SCHOOLS.some(x=>x.id===raw.school)||!MAJORS[raw.major]||!Array.isArray(raw.history)||!Array.isArray(raw.log))return null;
-  const s=structuredClone(raw);s.romancePreference=s.gender==='female'?'male':'female';if(s.candidate?.gender!==s.romancePreference)s.candidate=null;initializeLife(s);return s;
+  if(!raw||![4,5,SAVE_VERSION].includes(raw.version)||!PERSONALITIES.some(p=>p.id===raw.personality)||!SCHOOLS.some(x=>x.id===raw.school)||!MAJORS[raw.major]||!Array.isArray(raw.history)||!Array.isArray(raw.log))return null;
+  const s=structuredClone(raw);s.romancePreference=s.gender==='female'?'male':'female';if(s.candidate?.gender!==s.romancePreference)s.candidate=null;migrateCredits(s,{events:EVENTS});initializeLife(s);initializeStory(s);s.version=SAVE_VERSION;s.notifications??=[];
+  s.monthlyFreeDone??={};for(const key of Object.keys(s.hooks))if(key.startsWith('weekend-')&&s.hooks[key])s.monthlyFreeDone[key.slice(8)]=true;
+  if(s.notification){s.notifications.push(s.notification);delete s.notification;}
+  const migrationRng=s.rng;updateRanks(s);s.rng=migrationRng;
+  // Unresolved cards store a copy of authored content. Refresh that copy without
+  // replaying a choice, consuming RNG, or overwriting queue/runtime markers.
+  const refresh=card=>{
+    if(card?.kind!=='choice')return card;
+    const source=EVENTS.find(e=>e.id===card.id);if(!source)return card;
+    const current=prepareStoryEvent(s,source,{repeatContext:false});
+    return {...card,title:current.title,text:current.text,choices:current.choices};
+  };
+  if(!s.feedback)s.card=refresh(s.card);
+  if(s.freeTime?.returnCard)s.freeTime.returnCard=refresh(s.freeTime.returnCard);
+  return s;
 }
 export function setIdentity(s,gender){if(!['male','female'].includes(gender))return false;s.gender=gender;s.romancePreference=gender==='female'?'male':'female';return true;}
 export function probability(s,p) {
@@ -84,6 +143,7 @@ export function probability(s,p) {
   if(energyWeight){const delta=(energyPercent(s)-50)*energyWeight;value+=delta;if(Math.abs(delta)>.005)reasons.push(`精力状态：成功概率 ${delta>=0?'+':''}${roundState(delta*100)} 个百分点`);}
   if(moodWeight){const delta=(s.mood-50)*moodWeight;value+=delta;if(Math.abs(delta)>.005)reasons.push(`心情状态：成功概率 ${delta>=0?'+':''}${roundState(delta*100)} 个百分点`);}
   if(p.grade){const delta=(s.gpa-75)*p.grade;value+=delta;if(Math.abs(delta)>.005)reasons.push(`学业准备：成功概率 ${delta>=0?'+':''}${roundState(delta*100)} 个百分点`);}
+  if(p.candidate&&s.candidate){const valueDelta=((s.candidate.familiarity??20)+(s.candidate.trust??50)+(s.candidate.interest??40)-110)*p.candidate;value+=valueDelta;reasons.push('相处积累：成功概率 '+Math.round(valueDelta*100)+' 个百分点');}
   const charmWeight=p.charm??(s.card?.category==='social'||s.card?.group==='romance'?.002:0);
   if(charmWeight){const delta=(s.charm-50)*charmWeight;value+=delta;if(Math.abs(delta)>.0001)reasons.push(`魅力：成功概率 ${delta>=0?'+':''}${roundState(delta*100)} 个百分点`);}
   if(p.reasons)reasons.push(...p.reasons);
@@ -96,27 +156,44 @@ export function eventEligible(s,e,follow=false) {
   if(!follow&&!e.storyScope&&s.seen[e.id]!==undefined)return false;
   if(!follow&&s.recentEvents?.includes(eventExposureKey(s,e)))return false;
   if(!follow&&!e.choices.some(c=>choiceAvailable(s,c,e).ok))return false;
+  if(s.month<5&&!e.choices.some(c=>actionDuration({...e,consume:true},c,s)<=20-s.month*4-(s.week||0)))return false;
   if(isGap(s) && ['school','graduate'].includes(e.group))return false;
+  if(e.severity&&e.severity!=='relationship'&&!follow){const incidents=s.incidents||[];if(s.eventClock-(s.lastIncidentClock??-10)<5||incidents.filter(x=>x.sem===s.sem).length>=2||e.severity==='severe'&&incidents.some(x=>x.sem===s.sem&&x.severity==='severe'))return false;}
+  if(e.topic&&!follow&&s.eventClock-(s.topicSeen?.[scopeKey(s,e.storyScope||'run')+':'+e.topic]??-10)<3)return false;
   return true;
 }
 export function drawEvent(s) {
   initializeStory(s);const follow=nextFollowUp(s,eventEligible);if(follow)return follow;
   let candidates=EVENTS.filter(e=>eventEligible(s,e));
+  const incidents=candidates.filter(e=>e.severity&&e.severity!=='relationship');
+  if(incidents.length&&random(s)<.11)return sample(s,incidents);
+  candidates=candidates.filter(e=>!e.severity||e.severity==='relationship');
   const pick=(xs,weight)=>{let roll=random(s)*xs.reduce((n,e)=>n+weight(e),0);for(const e of xs){roll-=weight(e);if(roll<=0)return e;}return xs.at(-1);};
-  const eventWeight=e=>(e.weight||1)*(['school','major'].includes(e.group)?1.35:1)*(e.group==='romance'?(s.school==='normal'?1.25:1):1);
+  const eventWeight=e=>(s.scopedSeen?.[(s.relationship?.id||s.candidate?.meetingId||'run')+':'+e.id]===undefined?2:1)*(e.weight||1)*(['school','major'].includes(e.group)?1.35:1)*(isGrad(s)?e.group==='graduate'?2.4:e.group==='common'?.65:1:1)*(e.group==='romance'?(s.school==='normal'?1.25:1):1);
   if(s.relationship){const romance=candidates.filter(e=>e.group==='romance');const silence=s.eventClock-(s.lastRomanceEvent??s.eventClock);
     const chance=.29+(s.focus==='social'?.04:s.focus==='study'?-.01:0)+(silence>=5?.08:0);
     if(romance.length&&random(s)<chance)return pick(romance,eventWeight);
     candidates=candidates.filter(e=>e.group!=='romance');
   }
-  if(!candidates.length)return {id:'fallback',group:'common',category:'life',title:isGap(s)?'一段普通的备考日常':'一个普通的校园月',text:isGap(s)?'复习、饭点和晚风组成了这一段生活。':'课程、饭点和晚风组成了这一段生活。',choices:[{text:'复习基础内容',effects:{study:4,energy:-7},result:'学习准备留在这一阶段。'},{text:'恢复状态',effects:{energy:14,mood:8},result:'你找回了自己的节奏。'},{text:'不给这段时间安排任务',effects:{},freeTimeGain:1,result:'你留出了一段空闲。'}]};
-  const categoryWeights={study:24,project:19,work:15,social:23,life:19};const focus=s.focus==='rest'?'life':s.focus;categoryWeights[focus]*=1.65;
+  if(!candidates.length)return {id:'fallback',group:'common',category:'life',duration:1,title:isGap(s)?'一段普通的备考日常':'期末之前的一段空档',text:isGap(s)?'复习、饭点和晚风组成了这一段生活。':'本阶段较长的安排已经结束，期末前还有一小段时间。',choices:[{text:'复习基础内容',duration:1,effects:{study:4,energy:-7},result:'学习准备留在这一阶段。'},{text:'恢复状态',duration:1,effects:{energy:14,mood:8},result:'你找回了自己的节奏。'},{text:'不给这段时间安排任务',duration:1,effects:{},freeTimeGain:1,result:'你留出了一段空闲。'}]};
+  const categoryWeights=isGrad(s)?{study:30,project:35,work:10,social:15,life:10}:{study:24,project:19,work:15,social:23,life:19};const focus=s.focus==='rest'?'life':s.focus;categoryWeights[focus]*=1.65;
   if(energyPercent(s)<35||s.mood<35)categoryWeights.life*=1.6;if(s.balance<600)categoryWeights.work*=1.4;
   const cats=Object.keys(categoryWeights).filter(cat=>candidates.some(e=>(e.category||'life')===cat));
   const cat=pick(cats,c=>categoryWeights[c]);return pick(candidates.filter(e=>(e.category||'life')===cat),eventWeight);
 }
+function graduateChainDuration(card,choice,visited=new Set()){
+ const own=actionDuration({...card,consume:true},choice),id=choice.followUp?.id;
+ if(!id||visited.has(id))return own;
+ const next=EVENTS.find(e=>e.id===id);if(next?.group!=='graduate')return own;
+ const path=new Set([...visited,id]);
+ const continuing=next.choices.filter(c=>graduateEventIds.has(c.followUp?.id));
+ return Math.max(own,choice.followUp.afterWeeks||0)+Math.min(...(continuing.length?continuing:next.choices).map(c=>graduateChainDuration(next,c,path)));
+}
 export function choiceAvailable(s,c,card=s.card) {
+  if(card?.consume&&s.month<5&&actionDuration(card,c,s)>20-s.month*4-(s.week||0))return {ok:false,reason:'本学期剩余时间不足以完成这段安排'};
+  if(card?.consume&&card.group==='graduate'&&graduateEventIds.has(c.followUp?.id)&&graduateChainDuration(card,c)>280-(s.sem*20+s.month*4+(s.week||0)))return {ok:false,reason:'毕业前剩余日程不足以完成这条后续，可选择本轮暂不开始'};
   if(c.action?.startsWith('publicTarget:')){const post=PUBLIC_POSTS.find(p=>p.id===c.action.split(':')[1]);if(!post)return {ok:false,reason:'岗位不存在'};const eligible=publicEligibility(s,post,hasTag);if(!eligible.ok)return eligible;}
+  if((c.action?.startsWith('program:')||c.action?.startsWith('programUpgrade:'))&&!programAvailable(s,c.action.split(':')[1]))return {ok:false,reason:'已有同类考试或赛事等待结果'};
   const exertion=exertionAvailable(s,c.effects,!card?.consume);if(!exertion.ok)return exertion;
   const flags=flagsFor(s,card?.storyScope||'run');if(c.requiresFlags?.some(f=>!flags[f]))return {ok:false,reason:'需要之前建立的协作关系'};
   if(c.onceKey&&s.hooks[c.onceKey.startsWith('term:')?c.onceKey+'-'+s.sem:c.onceKey])return {ok:false,reason:'本学期已使用这类应急支持'};
@@ -127,7 +204,7 @@ export function choiceAvailable(s,c,card=s.card) {
   if(c.requiresAnyTags?.length&&!c.requiresAnyTags.some(t=>hasTag(s,t)))return {ok:false,reason:'需要相关经历才能选择'};
   return {ok:true,reason:''};
 }
-function notice(s,title,text,action=null) {log(s,title,text,'notice');if(action)s.notices.push({id:`notice-${++s.sequence}`,kind:'notice',title,text,action});else s.notification={title,text};}
+function notice(s,title,text,action=null) {log(s,title,text,'notice');if(action)s.notices.push({id:`notice-${++s.sequence}`,kind:'notice',title,text,action});else {s.notifications??=[];const last=s.notifications.at(-1);if(last?.title==='本月生活账单'&&title===last.title)last.text+='\n'+text;else s.notifications.push({title,text});}}
 function hook(s,key,fn) {if(s.hooks[key])return false;s.hooks[key]=true;fn();return true;}
 const fixed=(s,id,title,text,choices)=>s.card={id,kind:'choice',group:'milestone',title,text,choices,consume:false};
 function startSemester(s) {
@@ -160,7 +237,7 @@ function cadreElection(s,id) {
   const reasons=[];if(match)reasons.push(`${label}：成功概率 ${match>0?'+':''}${roundState(match*100)} 个百分点`);if(bonus)reasons.push(`上一学年履职：成功概率 ${bonus>0?'+':''}${roundState(bonus*100)} 个百分点`);
   const p={base:r.chance+bonus+match,tags:{学生干部经历:.08,校园活动:.04},mood:.0005,charm:.002,reasons};
   const outcome=(win,text)=>({text,effects:win?{activity:.5,mood:3,charm:.5}:{mood:-2},action:win?'cadreElected:'+id:'cadreDefeated'});
-  fixed(s,'cadre-election','竞选'+r.name,'工作内容：'+r.duty+'。任期一学年，需要投入时间；你准备如何介绍自己？',[
+  fixed(s,'cadre-election','竞选'+r.name,'工作内容：'+r.duty+'。任期一学年，合格履职结算综测'+CADRE_POINTS[id]+'分；至少完成3次事务且表现合格可获全额，履职不足或提前退出按情况折算，不因刚当选就加全年分。你准备如何介绍自己？',[
     {text:'提出一份具体可执行的工作方案',effects:{energy:-7},probability:p,success:outcome(true,'你的安排清楚可行，你当选了'+r.name+'。'),failure:outcome(false,'这次投票中，其他候选人获得了更多支持，你没有当选。')},
     {text:'和同学商量，从大家的实际需求出发',effects:{energy:-5},probability:{...p,base:p.base-.02,tags:{学生干部经历:.08,校园活动:.10}},success:outcome(true,'同学认可了你的沟通方式，你当选了'+r.name+'。'),failure:outcome(false,'这次名额有限，你没有当选。')},
     {text:'退出这次竞选，暂不承担岗位',action:'noCommittee',result:'你尊重自己的时间安排，没有勉强承担任职。'},
@@ -202,7 +279,8 @@ function endSemester(s) {
   }
   const grade=semesterGrade(s,random(s));
   s.neglectStreak=(s.termBehavior.missed>0&&s.termBehavior.studyActions<2)?(s.neglectStreak||0)+1:0;
-  const comp=coCurricularScore(s.activity);
+  if(s.sem%2===1){const gained=settleCadreCredits(s,{through:s.sem+1});if(gained)notice(s,'任期综测结算','完成本学年履职，本学年综测 +'+gained+' 分。');}
+  const comp=yearScore(s);
   s.grade=Number(grade.toFixed(1));
   s.grades.push({sem:s.sem,grade:s.grade,comp:Number(comp.toFixed(1))});
   const degreeGrades=s.grades.filter(g=>(isGrad(s)?g.sem>=8&&g.sem<14:isGap(s)?g.sem>=14:g.sem<8));
@@ -212,14 +290,13 @@ function endSemester(s) {
   notice(s,'期末成绩公布',`本学期 ${s.grade} 分；累计 ${s.gpa} 分，成绩排名 ${s.rank}/${s.cohort}；综测 ${s.comp} 分；综合成绩 ${s.combined} 分，综合排名 ${s.combinedRank}/${s.cohort}。`);
   if(s.sem%2===1&&s.rank<=s.cohort*.15){s.balance+=1500;addHistory(s,'奖学金');notice(s,'奖学金到账','你获得了本学年奖学金 ¥1,500，每学年结算一次。');}
   if(s.sem===5&&!s.hooks.qual){s.hooks.qual=true;qualification(s);}
-  if(s.sem===7 && s.admission&&degreeCourses(s).length){beginGraduation(s,'admission');return;}
-  if(s.sem===7 && s.admission){s.school=s.admission.school;s.sem=8;s.month=0;s.week=0;s.weekendDue=false;s.phase='start';s.grade=78;s.gpa=78;s.comp=50;s.grades=s.grades.filter(g=>g.sem<8);s.route='graduate';s.eligible=false;updateRanks(s);notice(s,'新的录取通知书',`本科阶段结束。你进入${schoolOf(s).name}，开始研究生生活。`);return;}
+  if(s.sem===7 && s.admission){beginGraduation(s,'admission');return;}
   if(s.sem===7 && s.route==='exam' && s.examOutcome==='success'){s.admission={school:s.target};beginGraduation(s,'admission');return;}
   if(s.sem===13 && !s.ending){beginGraduation(s,'degree');return;}
   if(s.sem===15 && !s.ending){finish(s,'二战之后','这段备考生活结束了。');return;}
   s.sem++;s.month=0;s.phase='start';
 }
-function endSemesterTransition(s) {s.graduateStartYear=academicYear(s)+1;s.school=s.admission.school;s.sem=8;s.month=0;s.phase='start';s.week=0;s.weekendDue=false;s.grade=78;s.gpa=78;s.comp=50;updateRanks(s);notice(s,'研究生入学',`你考入${schoolOf(s).name}。新的阶段开始了。`);}
+function endSemesterTransition(s) {s.graduateStartYear=academicYear(s)+1;s.school=s.admission.school;s.sem=8;s.month=0;s.phase='start';s.week=0;s.weekendDue=false;s.grade=78;s.gpa=78;s.comp=0;updateRanks(s);notice(s,'研究生入学',`你考入${schoolOf(s).name}。新的阶段开始了。`);}
 function remediationCard(s,course,graduation=false){
   const result={text:'补救通过，原始成绩保留在明细中，学期折算至及格水平。',action:'coursePassed'};
   const failed={text:'这次补救仍未通过。问题没有消失，之后还需要处理。',action:'courseFailed'};
@@ -228,12 +305,19 @@ function remediationCard(s,course,graduation=false){
     {text:'参加辅导，集中解决薄弱环节',effects:{balance:-180,study:4,energy:-6},probability:{base:.9,energy:.001},success:result,failure:failed},
     {text:graduation?'暂不完成补救，接受毕业暂缓':'这学期先处理其他安排',action:graduation?'deferGraduation':'courseDeferred',result:graduation?'你接受了毕业暂缓，当前去向仍以完成毕业要求为前提。':'这项问题仍会影响毕业和升学条件。'},
   ]);
-  s.card.courseId=course.id;s.card.consume=!graduation;s.card.duration=2;
+  s.card.courseId=course.id;s.card.consume=!graduation;s.card.duration=Math.min(2,Math.max(1,20-s.month*4-(s.week||0)));
 }
 function beginGraduation(s,type){
-  s.pendingFinish={type};s.graduationRetries=0;if(degreeCourses(s).length){s.phase='graduation';s.deferred='graduation-remediation';return false;}completeGraduation(s);return true;
+  s.pendingFinish={type};s.graduationRetries=0;
+  if(s.projectApplication?.status==='awaiting'){
+    s.projectApplication.due=s.eventClock;const card=projectApplicationCard(s,EVENTS.find(e=>e.id==='incident-rejection'));
+    if(card.arrivalEffects){arriveEvent(s,card);markEventShown(s,card);}s.card=card;s.phase='graduation';s.deferred='graduation-programs';return false;
+  }
+  if(s.programs?.some(p=>['preparing','awaiting'].includes(p.status))){s.programFinalizing=true;s.phase='graduation';s.deferred='graduation-programs';return false;}
+  if(degreeCourses(s).length){s.phase='graduation';s.deferred='graduation-remediation';return false;}completeGraduation(s);return true;
 }
 function completeGraduation(s){
+  const cat=graduationCatCard(s);if(cat){s.card=cat;s.phase='graduation';return;}
   const type=s.pendingFinish?.type;s.pendingFinish=null;
   if(type==='admission'){endSemesterTransition(s);s.route='graduate';ensureCard(s);return;}
   if(type==='retry'){closeGraduation(s);s.sem=14;s.month=0;s.week=0;s.weekendDue=false;s.eventSlot=0;s.phase='start';s.route='exam';s.attempt=2;s.target=null;s.examOutcome=null;s.deferred='target';return;}
@@ -267,10 +351,11 @@ export function ensureCard(s) {
   for(const text of pruneStories(s))notice(s,'事情有了变化',text);
   if(s.notices.length){s.card=s.notices.shift();return;}
   if(s.deferred){const next=s.deferred;s.deferred=null;
-    if(next==='newFriends'){if(s.relationship){fixed(s,'social-friends','扩大自己的朋友圈','你可以和新朋友交流兴趣，也记得尊重正在经营的关系。',[{text:'参加社团交流',effects:{energy:-4,mood:7},result:'你认识了几个有共同兴趣的朋友。'},{text:'和对象一起参加朋友聚会',effects:{balance:-50,mood:6,intimacy:3},result:'你们一起认识了新朋友。'},{text:'参加开放的运动活动',effects:{energy:-3,mood:6},result:'一场组队活动，让校园里多了几张熟悉的面孔。'}]);}else{const e=EVENTS.find(e=>e.id===(s.candidate?'social-new-again':'social-new-friends'));s.card={...prepareStoryEvent(s,e),kind:'choice',consume:false};if(s.candidate)s.storyQueue=s.storyQueue.filter(q=>q.id!==e.id||q.key!==s.candidate.meetingId);}s.card.socialActivity=true;return;}
+    if(next==='graduation-programs'){const card=nextProgramCard(s,{random,addHistory,updateRanks,log});if(card){s.card=card;s.deferred='graduation-programs';return;}s.programFinalizing=false;s.deferred=degreeCourses(s).length?'graduation-remediation':'graduation-complete';ensureCard(s);return;}
+    if(next==='newFriends'){if(s.relationship){fixed(s,'social-friends','扩大自己的朋友圈','你可以和新朋友交流兴趣，也记得尊重正在经营的关系。',[{text:'参加社团交流',effects:{energy:-4,mood:7},result:'你认识了几个有共同兴趣的朋友。'},{text:'和对象一起参加朋友聚会',effects:{balance:-50,mood:6,intimacy:3},result:'你们一起认识了新朋友。'},{text:'参加开放的运动活动',effects:{energy:-3,mood:6},result:'一场组队活动，让校园里多了几张熟悉的面孔。'}]);}else{const e=s.candidate?nextCandidateEvent(s):EVENTS.find(e=>e.id==='social-new-friends');s.card={...prepareStoryEvent(s,e),kind:'choice',consume:false};if(s.candidate)s.storyQueue=s.storyQueue.filter(q=>q.id!==e.id||q.key!==s.candidate.meetingId);}markEventShown(s,s.card);s.card.socialActivity=true;return;}
 
     if(next==='graduation-remediation'){const course=degreeCourses(s)[0];if(course){remediationCard(s,course,true);return;}s.deferred='graduation-complete';ensureCard(s);return;}
-    if(next==='graduation-complete'){completeGraduation(s);return;}
+    if(next==='graduation-complete'){completeGraduation(s);if(!s.card&&!s.ending)ensureCard(s);return;}
     if(next==='holidayPlans'){freeCard(s);return;}
     if(next==='homeTicket'){const e=EVENTS.find(e=>e.id==='ticket-home');s.card={...prepareStoryEvent(s,e),kind:'choice',consume:false};markEventShown(s,e);return;}
     if(next==='homeScene'){const e=sample(s,EVENTS.filter(e=>e.locations?.includes('home')&&eventEligible(s,e,true)));s.card={...prepareStoryEvent(s,e),kind:'choice',consume:false,homeVisit:true};markEventShown(s,e);return;}
@@ -306,7 +391,8 @@ export function ensureCard(s) {
   if(s.sem===6&&s.month===0&&hook(s,'qual',()=>qualification(s))){ensureCard(s);return;}
   if(s.sem===6&&s.month===0&&s.route==='undecided'){routeCard(s);return;}
   if(s.sem===6&&s.month>=1&&s.route==='work'&&!s.hooks.recruit){s.hooks.recruit=true;s.deferred='jobs';ensureCard(s);return;}
-  if(s.sem===12&&s.month>=1&&!s.hooks.gradRecruit){s.hooks.gradRecruit=true;s.route='work';s.deferred='jobs';ensureCard(s);return;}
+  const graduateChainPending=s.storyQueue.some(q=>graduateEventIds.has(q.id));
+  if((s.sem===12&&s.month>=1||s.sem===13)&&!s.hooks.gradRecruit&&!graduateChainPending&&!s.pendingWeeks&&!(s.weekendDue&&!s.monthlyFreeDone?.[key])){s.hooks.gradRecruit=true;s.route='work';s.deferred='jobs';ensureCard(s);return;}
   if((s.sem===6||s.sem===14)&&s.month===3&&s.route==='exam'&&hook(s,`exam-${s.attempt}`,()=>startQuiz(s,'exam'))){ensureCard(s);return;}
   if((s.sem===7||s.sem===15)&&s.month===1&&s.route==='exam'&&hook(s,`interview-${s.attempt}`,()=>examInterview(s)))return;
   if(s.sem===6&&s.month===2&&s.route==='civil'&&hook(s,'civil-exam',()=>startQuiz(s,'civil'))){ensureCard(s);return;}
@@ -322,15 +408,30 @@ export function ensureCard(s) {
     ]);
     for(const c of s.card.choices)c.probability.reasons=['岗位：'+post.level+'；基础竞争概率 '+Math.round(post.base*100)+'%',...(fit.tags.length?['岗位相关经历：'+fit.tags.join('、')+'，成功概率 +'+Math.round(fit.bonus*100)+' 个百分点']:[])];
   } )){if(!s.card&&!s.ending)ensureCard(s);return;}
+  // A real pending task can suffer an interruption before its next work card.
+  // Save the check so rendering/reloading cannot repeatedly roll for an accident.
+  const interruptionKey=s.sem+':'+s.eventClock;
+  if(!s.pendingFinish&&s.contextIncidentCheck!==interruptionKey){
+    s.contextIncidentCheck=interruptionKey;
+    const interruptions=EVENTS.filter(e=>(e.taskContext||e.minActiveTasks)&&e.arrivalEffects&&eventEligible(s,e));
+    if(interruptions.length&&random(s)<.06){const e=sample(s,interruptions);arriveEvent(s,e);markEventShown(s,e);s.card={...prepareStoryEvent(s,e),kind:'choice',consume:true};return;}
+  }
+  const applicationCard=projectApplicationCard(s,EVENTS.find(e=>e.id==='incident-rejection'));
+  if(applicationCard){if(applicationCard.arrivalEffects){arriveEvent(s,applicationCard);markEventShown(s,applicationCard);}s.card=applicationCard;return;}
+  const programCard=nextProgramCard(s,{random,addHistory,updateRanks,log});if(programCard){s.card=programCard;return;}
+  const upgradeCard=nextCompetitionUpgrade(s);if(upgradeCard){s.card=upgradeCard;return;}
+  if(s.incidentRecovery&&s.incidentRecovery.due<=s.eventClock){const recovery=s.incidentRecovery;s.incidentRecovery=null;fixed(s,'incident-recovery',recovery.title,recovery.text,[{text:'休息并逐步恢复日常节奏',effects:{energy:20,mood:6},result:'你留出恢复时间，先从低负担的安排开始。'},{text:'和信任的人复盘，寻求具体支持',effects:{energy:10,mood:10},result:'你获得了具体支持，把问题拆成了可以处理的部分。'},{text:'只做必要的轻量安排，其余任务延期',effects:{energy:-4,mood:3},result:'你减少了额外负担，接下来仍需要留出休息时间。'}]);return;}
   if(s.month===5){endSemester(s);ensureCard(s);return;}
   // Weekends are periodic leisure opportunities; no duplicate income settlement.
-  if(s.weekendDue&&!s.hooks[`weekend-${key}`]){
-    s.hooks[`weekend-${key}`]=true;s.weekendDue=false;
+  s.monthlyFreeDone??={};
+  if(s.weekendDue&&!s.monthlyFreeDone[key]){
+    s.monthlyFreeDone[key]=true;s.hooks[`weekend-${key}`]=true;s.weekendDue=false;
     if(s.lastLeisureTick!==(s.calendarTick||0)){maybeRelationshipConflict(s);s.freeTime={consume:false,leisure:true,scheduled:true};freeCard(s);return;}
   }
   if(s.hooks['weekend-'+key])s.weekendDue=false;
+  if(s.pendingWeeks>0){advancePendingWeeks(s);ensureCard(s);return;}
   const course=outstandingCourses(s).find(f=>!s.hooks['remediation-'+s.sem+'-'+f.id]);if(course){s.hooks['remediation-'+s.sem+'-'+course.id]=true;remediationCard(s,course);return;}
-  const e=drawEvent(s);markEventShown(s,e);s.card={...prepareStoryEvent(s,e),kind:'choice',consume:true};
+  const e=drawEvent(s);arriveEvent(s,e);markEventShown(s,e);s.card={...prepareStoryEvent(s,e),kind:'choice',consume:true};
 }
 export function advanceNotice(s) {
   if(s.card?.kind!=='notice'||s.feedback)return false;s.card=null;ensureCard(s);return true;
@@ -339,6 +440,7 @@ function applyAction(s,action) {
   if(!action)return;
   if(applyAdmissionAction(s,action))return;
   initializeLife(s);
+  if(action==='catPhoto'||action==='catFarewell'){finishCatGraduation(s,action==='catPhoto');s.deferred='graduation-complete';return;}
   if(action==='coursePassed'||action==='courseFailed'){const course=s.academicFailures.find(f=>f.id===s.card.courseId);if(course){course.attempts++;if(action==='coursePassed'){repairAcademicCourse(s,course.id);updateRanks(s);}if(s.pendingFinish){if(action==='courseFailed')s.graduationRetries=(s.graduationRetries||0)+1;if(s.graduationRetries>=2){applyAction(s,'deferGraduation');return;}s.deferred=degreeCourses(s).length?'graduation-remediation':'graduation-complete';}}return;}
   if(action==='deferGraduation'){finish(s,'毕业暂缓','尚未完成的课程需要继续补救。已确定的去向仍以满足毕业条件为前提。');s.ending.degree=isGrad(s)?'硕士未毕业':'本科未毕业';return;}
   if(action==='courseDeferred')return;
@@ -352,7 +454,12 @@ function applyAction(s,action) {
   if(action?.startsWith('startInternship')){s.internship={...internshipTerms(s,action.split(':')[1]||'local'),startedSem:s.sem,completed:false};for(const flag of ['internshipReliable','internshipMentored','internshipFrustrated'])s.plotFlags[flag]=false;s.plotFlags.internshipActive=true;queueFollowUp(s,{id:'internship-work',after:1,expires:10,clearFlags:['internshipActive','internshipReliable','internshipMentored','internshipFrustrated']});return;}
   if(action==='finishInternship'){const job=s.internship;if(job&&!job.completed){s.balance+=job.net;job.completed=true;job.completedSem=s.sem;s.finances.push({type:'internship',gross:job.gross,extraCost:job.extraCost,net:job.net,weeks:job.weeks});addHistory(s,'实习经历',job.weeks+'周 · 实际报酬 '+job.gross+' · 额外成本 '+job.extraCost);}return;}
   if(action==='sellUnused'){s.inventory??={unusedBook:true};if(s.inventory.unusedBook){s.inventory.unusedBook=false;s.balance+=120;}return;}
-  if(action==='meet'){s.candidate=structuredClone(sample(s,people));s.candidate.meetingId='candidate-'+(++s.sequence);}
+  if(action==='candidateContinue'){const next=nextCandidateEvent(s);if(EVENTS.some(e=>e.id===next.id))queueFollowUp(s,{id:next.id,scope:'candidate',after:3,expires:14},'candidate');return;}
+  if(action==='submitProjectApplication'){submitProjectApplication(s,random(s));return;}
+  if(action.startsWith('programUpgrade:')){const parent=s.programs.find(p=>p.id===s.card.programId);registerProgram(s,action.split(':')[1],random(s),{family:parent.family||parent.id});return;}
+  if(action.startsWith('program:')||action.startsWith('programReady:')){registerProgram(s,action.split(':')[1],random(s),{ready:action.startsWith('programReady:')});return;}
+  if(['programPrepare','programBasic','programWithdraw'].includes(action)){programAction(s,action);return;}
+  if(action==='meet'){s.candidate=structuredClone(sample(s,people));s.candidate.meetingId='candidate-'+(++s.sequence);Object.assign(s.candidate,{familiarity:20,interest:40,trust:50});}
   if(action==='date'){s.relationship={id:'relationship-'+(++s.sequence),person:s.candidate||structuredClone(sample(s,people)),stage:'dating',started:s.sem,intimacy:55,memories:0,flags:{},lastContact:s.calendarTick||0};s.candidate=null;normalizeRelationship(s);s.romances.push({name:s.relationship.person.name,start:stageName(s),end:null});}
   if(action==='clearCandidate')s.candidate=null;
   if(action==='strengthen'&&s.relationship)changeIntimacy(s,10,{contact:true});
@@ -361,7 +468,7 @@ function applyAction(s,action) {
   if(action==='breakup'){if(s.relationship){const r=s.romances.findLast(r=>!r.end);if(r)r.end=stageName(s);}s.relationship=null;s.candidate=null;}
   if(action==='revealRich'&&s.relationship)s.relationship.revealed=true;
   if(action==='committee')s.committee=true;
-  if(action==='noCommittee'){s.cadre=null;s.previousCadre=null;s.committee=false;}
+  if(action==='noCommittee'){settleCadreCredits(s,{through:s.sem+s.month/5,exit:true});s.cadre=null;s.previousCadre=null;s.committee=false;}
   if(action==='recommend'||action==='exam'){s.route=action;s.target=null;s.deferred='target';}
   if(action==='work'){s.route='work';if(s.sem>=7){s.hooks.recruit=true;s.deferred='jobs';}}
   if(action==='workNow'){s.route='work';s.hooks.recruit=true;s.deferred='jobs';}
@@ -380,22 +487,23 @@ function applyAction(s,action) {
   if(action==='civilAccepted'){const post=publicPostOf(s);const fit=publicFit(s,post,hasTag);const quality=clamp(((s.civilScore??post.examLine)-post.examLine)/Math.max(1,100-post.examLine)*.65+fit.bonus,0,1);s.publicOffer={...post,salary:Math.round((post.salary+(post.salaryMax-post.salary)*quality)*10)/10,salaryBasis:'税前年现金收入',rating:post.selection?'选调录用':'公务员录用',packageText:'现金收入估算；保障与补贴另列，无企业股权'};s.deferred='epilogue';}
   if(action==='civilRejected'){s.civilFailure='笔试已通过，面试未获录用。';beginGraduation(s,'civil-failure');}
 }
-export function actionDuration(card,choice={}) {
+export function actionDuration(card,choice={},state) {
   if(!card?.consume)return 0;
-  if(choice.duration!==undefined)return clamp(choice.duration,0,MONTH_UNITS);
+  if(choice.duration!==undefined)return clamp(choice.duration,0,10);
   if(card.duration===0)return 0;
-  if(choice.freeTimeGain||choice.effects?.energy>5)return 1;
+  if(choice.freeTimeGain||choice.effects?.energy>5)return 2;
   if(choice.effects?.balance>=400)return 4;
-  if(choice.effects?.study>=5)return 3;
-  return card.duration??2;
+  if(state&&isGrad(state)&&card.duration>=4&&['study','project'].includes(card.category))return Math.max(card.duration,card.category==='project'?10:8);
+  if(choice.effects?.study>=5)return card.duration??4;
+  return card.duration??3;
 }
 export function choose(s,index) {
   const card=s.card;if(s.ending||s.feedback||card?.kind!=='choice')return false;
   const choice=card.choices[index];if(!choice)return false;
   if(!choiceAvailable(s,choice).ok)return false;
-  const timeCost=card.id==='internship-work'&&s.internship&&card.consume?MONTH_UNITS:actionDuration(card,choice);
+  const timeCost=card.id==='internship-work'&&s.internship&&card.consume?MONTH_UNITS:actionDuration(card,choice,s);
   const p=choice.probability?probability(s,choice.probability):null;
-  initializeLife(s);const unlockStart=s.routineUnlocks?.length||0;const before={intimacy:s.relationship?.intimacy||0,energy:s.energy,mood:s.mood,charm:s.charm,balance:s.balance,study:s.study,activity:s.activity,tags:s.history.length};applyEffects(s,choice.effects);
+  initializeLife(s);const unlockStart=s.routineUnlocks?.length||0;const before={intimacy:s.relationship?.intimacy||0,energy:s.energy,mood:s.mood,charm:s.charm,balance:s.balance,study:s.study,activity:s.activity,credit:yearScore(s),tags:s.history.length};applyEffects(s,choice.effects);
   let text=choice.result||'',success=null,action=choice.action,resolvedOutcome=null;
   if(p){success=random(s)<p.value;const outcome=success?choice.success:choice.failure;resolvedOutcome=outcome;applyEffects(s,outcome.effects);text=outcome.text;action=outcome.action||action;}
   if(action==='browseLottery')action=null;
@@ -403,16 +511,26 @@ export function choose(s,index) {
   const unlocked=s.routineUnlocks?.slice(unlockStart)||[];if(unlocked.length)text+=' '+unlocked.map(x=>x.note).join(' ');
   log(s,card.title,`${choice.text} → ${text}`);const selectionRecord=s.log.at(-1);
   applyAction(s,action);rememberChoice(s,card,choice,resolvedOutcome);
+  s.taskContexts??={};s.activeTasks??={};
+  const contextUntil=s.sem*20+s.month*4+(s.week||0)+6;
+  if(/纸质|打印|纸面/.test(card.text||'')&&choice.effects?.study)s.taskContexts.materials=contextUntil;
+  if(card.category==='project'&&/合作|分工|团队|队友|小组/.test(card.text||'')&&choice.followUp)s.taskContexts.collaboration=contextUntil;
+  if(card.category==='social'&&(choice.effects?.tags?.includes('公共表达')||resolvedOutcome?.effects?.tags?.includes('公共表达')))s.taskContexts.expression=contextUntil;
+  if(choice.candidateDelta&&s.candidate)for(const [key,delta] of Object.entries(choice.candidateDelta))s.candidate[key]=clamp((s.candidate[key]??(key==='familiarity'?20:key==='trust'?50:40))+delta);
+  if(choice.credit){const gain=awardCredit(s,{...choice.credit,key:`event:${card.id}:${academicYear(s)}`,label:card.title+' · '+choice.credit.label});if(gain)text+=' 本学年综测 +'+gain+' 分。';updateRanks(s);}
+  if(choice.incidentFollow)s.incidentRecovery={...card.recovery,due:s.eventClock+2};
   if(action==='meet'&&resolvedOutcome?.followUp?.scope==='candidate')queueFollowUp(s,resolvedOutcome.followUp,'candidate');
-  if(card.socialActivity)s.lastLeisureTick=s.calendarTick||0;
-  const effects=Object.fromEntries(['energy','mood','charm','balance','study','activity'].map(k=>[k,Number((s[k]-before[k]).toFixed(1))]));effects.intimacy=s.relationship?Number((s.relationship.intimacy-before.intimacy).toFixed(1)):0;effects.tags=s.history.slice(before.tags).map(h=>h.tag);
+  if(card.socialActivity&&!s.freeTime?.holiday)s.lastLeisureTick=s.calendarTick||0;
+  const effects=Object.fromEntries(['energy','mood','charm','balance','study','activity'].map(k=>[k,Number((s[k]-before[k]).toFixed(1))]));effects.intimacy=s.relationship?Number((s.relationship.intimacy-before.intimacy).toFixed(1)):0;effects.tags=s.history.slice(before.tags).map(h=>h.tag);effects.credit=roundState(yearScore(s)-before.credit);
   if(effects.study>0&&before.study>=18&&s.studyDiminishingNotifiedSem!==s.sem){text+=' 学习准备已较充分，继续投入仍有收益，但增长会逐渐放缓。';s.studyDiminishingNotifiedSem=s.sem;selectionRecord.text=`${choice.text} → ${text}`;}
-  const inline=card.consume&&!card._follow&&['common','school','major','graduate'].includes(card.group)&&!choice.freeTimeGain&&!action&&!choice.followUp&&!resolvedOutcome?.followUp&&!effects.tags.length;
+  const inline=false;
+  selectionRecord.text=`${choice.text} → ${text}`;
   Object.assign(selectionRecord, {effects,probability:p?{...p,success}:null});
-  if(s.ending)return true;
+  if(s.ending){notice(s,card.title+' · 结果',text);return true;}
   s.feedback={inline,source:card.title,freeTimeComplete:!!card.socialActivity||!!card.homeVisit,title:card.id==='cadre-election'?(success?'你当选了':'这次没能当选'):card.title+' · 结果',text,effects,probability:p?{...p,success}:null,consume:timeCost>0,timeCost,fromSem:s.sem,freeTimeGain:choice.freeTimeGain||0,openLottery:choice.action==='browseLottery'};
   return true;
 }
+export function acknowledgeNotification(s){if(!s.notifications?.length)return false;s.notifications.shift();return true;}
 export function advanceRoutineResult(s){if(!s.feedback?.inline)return false;continueFeedback(s);return true;}
 export function lotteryPrize(roll,id='weekend') {return drawPrize(id,roll);}
 export function settleCalendarMonth(s,index,{holiday=null}={}) {
@@ -423,7 +541,7 @@ export function settleCalendarMonth(s,index,{holiday=null}={}) {
   const entry={key,calendarMonth:index,type:holiday?'holiday':'month',sem:s.sem,month:s.month,holiday:vacation,income,cost,paid,shortfall,before,after:s.balance};
   s.finances.push(entry);
   log(s,'月度收支',monthLabel(index)+'：到账 ¥'+income+'，必要生活支出 ¥'+cost+(shortfall?'，尚有 ¥'+shortfall+' 需要补齐。':'。'),'notice');
-  if(s.calendarTick>1)changeEnergy(s,10);
+  if(s.calendarTick>1){changeEnergy(s,2);naturalMood(s);}
   if(s.relationship&&(s.calendarTick-s.relationship.lastContact)>2)changeIntimacy(s,-4);
   return entry;
 }
@@ -433,10 +551,14 @@ function settleMonth(s) {
 }
 function advanceEvent(s,units=2) {
   initializeStory(s);if(units<=0)return;
-  s.eventClock++;s.eventSlot=(s.eventSlot||0)+1;s.week=(s.week||0)+units;s.weekendDue=true;
-  // Ordinary passing time includes routine coursework; recovery comes from actual choices.
-  // Rough calendar duration is unchanged; ordinary sleep is part of monthly recovery.
-  if(s.week>=MONTH_UNITS){s.week-=MONTH_UNITS;s.eventSlot=0;s.month++;if(s.month<5)settleMonth(s);else s.week=0;if(s.week===0)s.weekendDue=false;}
+  s.eventClock++;s.eventSlot=(s.eventSlot||0)+1;s.pendingWeeks=(s.pendingWeeks||0)+units;advancePendingWeeks(s);
+}
+export function advancePendingWeeks(s){
+ s.monthlyFreeDone??={};
+ if(s.month>=5){s.pendingWeeks=0;return;}
+ if(!s.monthlyFreeDone[`${s.sem}-${s.month}`]){s.weekendDue=true;return;}
+ const step=Math.min(s.pendingWeeks||0,MONTH_UNITS-(s.week||0));s.week=(s.week||0)+step;s.pendingWeeks=Math.max(0,(s.pendingWeeks||0)-step);
+ if(s.week>=MONTH_UNITS){s.week=0;s.eventSlot=0;s.month++;s.activeTasks={};if(s.month<5){settleMonth(s);s.weekendDue=true;}else s.pendingWeeks=0;}
 }
 function settleHoliday(s,holiday){
   let income=0,cost=0,newMonths=0;
@@ -581,21 +703,38 @@ function epilogueCard(s) {
     {text:'和家人一起整理毕业行李',action:'epilogueTogether',result:'录取通知书旁边，终于多了一张毕业照。'},
   ]);
 }
-function closeGraduation(s){s.applicationAcademic={gpa:s.gpa,rank:s.rank,comp:s.comp,combined:s.combined,combinedRank:s.combinedRank,sem:s.sem};if(isGap(s)){log(s,'本科毕业档案','本科已经毕业，备考年保留原学业档案，不倒退日历补算本科课程。','notice');return;}const end=isGrad(s)?13:7;for(let sem=s.sem;sem<=end;sem++)if(!s.grades.some(g=>g.sem===sem))s.grades.push({sem,grade:Math.round(clamp(s.gpa)*10)/10,comp:s.comp,epilogue:true});s.sem=end;s.month=5;addHistory(s,'毕业论文','毕业尾声：完成论文与必要课程，学业以求职时水平收尾');log(s,'毕业收尾','完成论文、必要课程与毕业手续。尾声补齐的学期沿用求职时学业水平，不额外随机改变已选择的去向。','notice');updateRanks(s);}
+function closeGraduation(s){
+  s.applicationAcademic={gpa:s.gpa,rank:s.rank,comp:s.comp,combined:s.combined,combinedRank:s.combinedRank,sem:s.sem};
+  if(isGap(s)){log(s,'本科毕业档案','本科已经毕业，备考年保留原学业档案，不倒退日历补算本科课程。','notice');return;}
+  const end=isGrad(s)?13:7;
+  const credit=settleCadreCredits(s,{through:s.sem+s.month/5,exit:true});
+  s.cadre=null;s.committee=false;
+  if(credit)notice(s,'毕业任职交接','截至实际游玩时点的履职按已完成任期折算，综测 +'+credit+' 分；毕业尾声不虚构额外任职贡献。');
+  for(let sem=s.sem;sem<=end;sem++)if(!s.grades.some(g=>g.sem===sem))s.grades.push({sem,grade:Math.round(clamp(s.gpa)*10)/10,comp:s.comp,epilogue:true});
+  s.sem=end;s.month=5;addHistory(s,'毕业论文','毕业尾声：完成论文与必要课程，学业以求职时水平收尾');log(s,'毕业收尾','完成论文、必要课程与毕业手续。尾声补齐的学期沿用求职时学业水平，不额外随机改变已选择的去向。','notice');updateRanks(s);
+}
 function finishOffer(s) {beginGraduation(s,'offer');}
-export function finish(s,title,text) {s.ending={title,text,at:stageName(s),degree:isGrad(s)?'硕士':s.sem>=7||s.selectedOffer||(s.sem===6&&s.route==='work')?'本科':'本科在读'};s.card=null;s.feedback=null;for(const q of s.storyQueue||[]){clearQueuedFlags(s,q);s.storyResults.push({id:q.id,status:'ended',sem:s.sem,text:q.source+'的接续随本局结束而收尾。'});}s.storyQueue=[];s.freeTime=null;log(s,title,text,'ending');}
+export function finish(s,title,text) {
+  if(s.projectApplication?.status==='awaiting'){s.projectApplication.status='withdrawn';s.projectApplication.result='本局提前结束，尚未公布的小项目申请已撤回，不生成入选或完成经历。';}
+  for(const p of s.programs||[])if(p.status==='preparing'){p.status='withdrawn';p.result='本局收尾时尚未完成准备，报名已取消，费用不退，不计证书、奖项或综测。';}
+  s.programFinalizing=true;
+  for(let i=0;i<(s.programs?.length||0);i++){const result=nextProgramCard(s,{random,addHistory,updateRanks,log});if(!result)break;notice(s,result.title,result.text);}
+  s.programFinalizing=false;
+  s.ending={title,text,at:stageName(s),degree:isGrad(s)?'硕士':s.sem>=7||s.selectedOffer||(s.sem===6&&s.route==='work')?'本科':'本科在读'};s.card=null;s.feedback=null;
+  for(const q of s.storyQueue||[]){clearQueuedFlags(s,q);s.storyResults.push({id:q.id,status:'ended',sem:s.sem,text:q.source+'的接续随本局结束而收尾。'});}s.storyQueue=[];s.freeTime=null;log(s,title,text,'ending');
+}
 export function summary(s) {
   const offer=s.selectedOffer?JOBS.find(j=>j.id===s.selectedOffer.id):null;
   const experiences=importantExperiences(s);const keywords=experiences.map(h=>h.tag);
   const graded=s.grades.some(g=>isGrad(s)?g.sem>=8&&g.sem<14:g.sem<8);
   const lottery={count:s.lotteryTransactions?.length||0,spent:(s.lotteryTransactions||[]).reduce((n,t)=>n+t.price,0),won:(s.lotteryTransactions||[]).filter(t=>t.revealed).reduce((n,t)=>n+t.prize,0)};lottery.net=lottery.won-lottery.spent;
-  return {recap:describeRun(s),name:s.name,gender:s.gender,personality:personalityOf(s).name,charm:s.charm,energyMax:energyMax(s),applicationAcademic:s.applicationAcademic,lottery,quizHistory:s.quizHistory,ending:s.ending,school:schoolOf(s).name,originSchool:SCHOOLS.find(x=>x.id===s.originSchool).name,major:MAJORS[s.major].name,grade:graded?s.gpa:'未结算',rank:graded?`${s.rank}/${s.cohort}`:'未结算',comp:graded?s.comp:'未结算',combined:graded?s.combined:'未结算',combinedRank:graded?`${s.combinedRank}/${s.cohort}`:'未结算',balance:s.balance,energy:s.energy,mood:s.mood,keywords,experiences,cadreHistory:s.cadreHistory,finances:s.finances,policy:s.policy,intimacy:s.relationship?.intimacy??null,romances:s.romances,relationship:s.relationship?.person.name||'单身',offer:s.publicOffer|| (offer?{...offer,...s.selectedOffer}:null),epilogue:s.epilogue||'',history:s.history,log:s.log,examScore:s.examScore};
+  return {recap:describeRun(s),catPhoto:currentCatPhoto(s),name:s.name,gender:s.gender,personality:personalityOf(s).name,charm:s.charm,creditLedger:s.creditLedger||[],programs:s.programs||[],lifetimeCredits:lifetimeCredits(s),energyMax:energyMax(s),applicationAcademic:s.applicationAcademic,lottery,quizHistory:s.quizHistory,ending:s.ending,school:schoolOf(s).name,originSchool:SCHOOLS.find(x=>x.id===s.originSchool).name,major:MAJORS[s.major].name,grade:graded?s.gpa:'未结算',rank:graded?`${s.rank}/${s.cohort}`:'未结算',comp:graded?s.comp:'未结算',combined:graded?s.combined:'未结算',combinedRank:graded?`${s.combinedRank}/${s.cohort}`:'未结算',balance:s.balance,energy:s.energy,mood:s.mood,keywords,experiences,cadreHistory:s.cadreHistory,finances:s.finances,policy:s.policy,intimacy:s.relationship?.intimacy??null,romances:s.romances,relationship:s.relationship?.person.name||'单身',offer:s.publicOffer|| (offer?{...offer,...s.selectedOffer}:null),epilogue:s.epilogue||'',history:s.history,log:s.log,examScore:s.examScore};
 }
 function recordText(x){
-  const labels={energy:'精力',mood:'心情',charm:'魅力',balance:'余额',study:'学习积累',activity:'活动积累',intimacy:'亲密度'};
+  const labels={energy:'精力',mood:'心情',charm:'魅力',balance:'余额',study:'学习积累',activity:'活动积累',credit:'本学年综测',intimacy:'亲密度'};
   const changes=Object.entries(x.effects||{}).filter(([key,value])=>labels[key]&&value).map(([key,value])=>`${labels[key]} ${value>0?'+':''}${roundState(value)}`);
   if(x.effects?.tags?.length)changes.push('经历：'+x.effects.tags.join('、'));
   const chance=x.probability?`本次成功率 ${Math.round(x.probability.value*100)}%${x.probability.reasons.length?'；'+x.probability.reasons.join('；'):''}`:'';
   return [`[${x.time}] ${x.title}`,x.text,changes.join(' · '),chance].filter(Boolean).join('\n');
 }
-export function summaryText(s) {const r=summary(s);return [`下一站，毕业 · ${r.name}的本局档案`,`结局：${r.ending?.title||'尚未结束'}`,r.ending?.text||'',r.offer?`录用：${r.offer.rating||'录用'}｜${r.offer.salaryBasis||'税前年总包'} ${r.offer.salary} 万｜${r.offer.packageText||''}｜${r.offer.benefits||''}`:'',`身份：${r.gender==='female'?'女':'男'}｜特质：${r.personality}｜魅力：${Math.round(r.charm)}`,`院校：${r.school}｜专业：${r.major}`,`累计成绩：${r.grade}｜排名：${r.rank}`,`综测：${r.comp}｜综合成绩：${r.combined}｜综合排名：${r.combinedRank}`,`余额：¥${r.balance.toLocaleString()}｜当前关系：${r.relationship}`,r.applicationAcademic?`求职时学业：${r.applicationAcademic.gpa} 分，排名 ${r.applicationAcademic.rank}/${s.cohort}；毕业尾声沿用学业水平。`:'',`彩票：${r.lottery.count} 张，支出 ¥${r.lottery.spent}，奖金 ¥${r.lottery.won}，净收益 ¥${r.lottery.net}`,r.epilogue,'','这一局的变化',...r.recap.lines,`日历生活支持：¥${r.recap.money.support}｜必要支出：¥${r.recap.money.necessary}｜其他资金净变化：¥${r.recap.money.otherNet}`,`实习工资：¥${r.recap.money.internshipGross}｜实习额外成本：¥${r.recap.money.internshipCost}`,'','模拟考试成绩',...r.quizHistory.map(h=>(h.purpose==='jobs'?'秋招':h.purpose==='exam'?'考研':'考公')+'：加权短卷 '+(h.weightedScore??h.score)+' 分；'+Object.entries(h.sections||{}).map(([name,x])=>name+' '+x.score+' 分').join('，')),`任职：${r.recap.posts.map(p=>p.name+'（'+p.period+'，履职 '+(p.tasks||0)+' 次，表现 '+(p.performance||0)+'）').join('；')||'无'}`,'','实际成绩明细',...r.recap.grades.map(g=>g.label+'：'+g.grade+' 分'+(g.remediated?'，原始 '+g.originalGrade+' 分，补救通过':'')),`人生关键词：${r.keywords.join('、')||'普通而独特的大学生活'}`,'','本局记录',...r.log.map(recordText),'','所有院校、企业、城市、薪酬与录取规则均为虚构游戏设定；彩票概率与奖金是游戏设定。'].join('\n');}
+export function summaryText(s) {const r=summary(s);return [`下一站，毕业 · ${r.name}的本局档案`,`结局：${r.ending?.title||'尚未结束'}`,r.ending?.text||'',r.offer?`录用：${r.offer.rating||'录用'}｜${r.offer.salaryBasis||'税前年总包'} ${r.offer.salary} 万｜${r.offer.packageText||''}｜${r.offer.benefits||''}`:'',`身份：${r.gender==='female'?'女':'男'}｜特质：${r.personality}｜魅力：${Math.round(r.charm)}`,`院校：${r.school}｜专业：${r.major}`,`累计成绩：${r.grade}｜排名：${r.rank}`,`综测：${r.comp}｜综合成绩：${r.combined}｜综合排名：${r.combinedRank}`,`余额：¥${r.balance.toLocaleString()}｜当前关系：${r.relationship}`,r.applicationAcademic?`求职时学业：${r.applicationAcademic.gpa} 分，排名 ${r.applicationAcademic.rank}/${s.cohort}；毕业尾声沿用学业水平。`:'',`彩票：${r.lottery.count} 张，支出 ¥${r.lottery.spent}，奖金 ¥${r.lottery.won}，净收益 ¥${r.lottery.net}`,r.epilogue,'','这一局的变化',...r.recap.lines,`日历生活支持：¥${r.recap.money.support}｜必要支出：¥${r.recap.money.necessary}｜其他资金净变化：¥${r.recap.money.otherNet}`,`实习工资：¥${r.recap.money.internshipGross}｜实习额外成本：¥${r.recap.money.internshipCost}`,'','模拟考试成绩',...r.quizHistory.map(h=>(h.purpose==='jobs'?'秋招':h.purpose==='exam'?'考研':'考公')+'：加权短卷 '+(h.weightedScore??h.score)+' 分；'+Object.entries(h.sections||{}).map(([name,x])=>name+' '+x.score+' 分').join('，')),`任职：${r.recap.posts.map(p=>p.name+'（'+p.period+'，履职 '+(p.tasks||0)+' 次，表现 '+(p.performance||0)+'）').join('；')||'无'}`,'','实际成绩明细',...r.recap.grades.map(g=>g.label+'：'+g.grade+' 分'+(g.remediated?'，原始 '+g.originalGrade+' 分，补救通过':'')),`人生关键词：${r.keywords.join('、')||'普通而独特的大学生活'}`,'','综测加分明细',...r.creditLedger.map(x=>'第'+(x.year+1)+'学年：'+x.label+' +'+x.points+'分'),`生涯累计综测加分：${r.lifetimeCredits}`,'','考试与赛事结果',...r.programs.map(p=>p.name+'：'+(p.result||({preparing:'已报名，准备中',awaiting:'已参加，等待结果'}[p.status]||p.status))),'','本局记录',...r.log.map(recordText),'','所有院校、企业、城市、薪酬与录取规则均为虚构游戏设定；彩票概率与奖金是游戏设定。'].join('\n');}

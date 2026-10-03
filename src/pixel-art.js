@@ -76,7 +76,9 @@ function backdrop(context,school='aero') {
 export function sceneSVG(s = {}, context = sceneFor(s), compact = false) {
   // Character markup is inline so state styles never cross SVG <use> shadow trees.
   const character=characterSVG(s,context).replace('<svg class="pixel-person"','<svg x="352" y="87" width="67" height="100" class="pixel-person"');
-  return `<svg class="pixel-scene-art" viewBox="${compact?'0 72 800 120':'0 0 800 192'}" preserveAspectRatio="xMidYMid slice" xmlns="http://www.w3.org/2000/svg" shape-rendering="crispEdges" aria-hidden="true">${backdrop(context,s.school)}${character}</svg>`;
+  const showCat=(s.card?.id||'').includes('cat-')||!!currentCatPhoto(s);
+  const cat=showCat?catSVG(s.card?.id==='r12-cat-meet'?'sleeping':'sitting').replace('<svg class="pixel-cat"','<svg x="428" y="139" width="58" height="45" class="pixel-cat"'):'';
+  return `<svg class="pixel-scene-art" viewBox="${compact?'0 72 800 120':'0 0 800 192'}" preserveAspectRatio="xMidYMid slice" xmlns="http://www.w3.org/2000/svg" shape-rendering="crispEdges" aria-hidden="true">${backdrop(context,s.school)}${character}${cat}</svg>`;
 }
 
 export function pixelScene(s = {}, context = sceneFor(s), compact = false) {
@@ -98,3 +100,4 @@ export function pixelIcon(id) {
   };
   return `<svg class="pixel-icon" viewBox="0 0 24 24" aria-hidden="true" shape-rendering="crispEdges">${shapes[id]||shapes.study}</svg>`;
 }
+import {catSVG,currentCatPhoto} from './campus-cat.js';

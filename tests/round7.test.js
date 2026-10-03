@@ -36,20 +36,20 @@ test('charm changes social chances but cannot improve unrelated exam or lottery 
   E.startQuiz(low,'civil');E.startQuiz(high,'civil');for(const s of [low,high]){const q=QUESTIONS.find(q=>q.id===s.quiz.questions[0]);E.answerQuestion(s,q.answer);}assert.equal(low.quiz.answers[0],high.quiz.answers[0]);
 });
 test('charm grows slowly from specific communication and is a minor established-relationship factor',()=>{
-  const e=EVENTS.find(e=>e.id==='student-show');assert.equal(e.choices[0].success.effects.charm,.6);assert.equal(e.choices[0].failure.effects?.charm,undefined);
+  const e=EVENTS.find(e=>e.id==='student-show');assert.equal(e.choices[0].success.effects.charm,.3);assert.equal(e.choices[0].failure.effects?.charm,undefined);
   const romance=EVENTS.find(e=>e.id==='love-conflict');assert.equal(romance.choices[0].probability.charm,.0005);
   const s=ready();E.applyEffects(s,{charm:.6});assert.equal(s.charm,50.6);E.applyEffects(s,{charm:1000});assert.equal(s.charm,100);E.applyEffects(s,{charm:-1000});assert.equal(s.charm,0);
 });
 test('academic and extracurricular scores are independent and ranking uses the 80/20 formula',()=>{
-  assert.equal(coCurricularScore(0),50);assert.equal(coCurricularScore(8),70);assert.equal(coCurricularScore(20),100);assert.equal(combinedScore(90,60),84);
-  const s=ready();s.gpa=90;s.comp=60;s.peers['aero-under']=[{grade:95,activity:0},{grade:80,activity:20}];E.updateRanks(s);
-  // Peer totals are about 86 and 84 after a tiny semester grade variation.
-  assert.equal(s.combined,84);assert.equal(s.combinedRank,3);assert.equal(s.rank,2);assert.ok(!('compRank' in s));
-  s.comp=100;E.updateRanks(s);assert.equal(s.combined,92);assert.equal(s.combinedRank,1);assert.equal(s.rank,2);
+  assert.equal(coCurricularScore(0),0);assert.equal(coCurricularScore(8),8);assert.equal(coCurricularScore(20),20);assert.equal(combinedScore(90,60),84);
+  const s=ready();s.gpa=90;s.creditLedger=[{year:0,category:'competition',key:'award',points:20}];s.peers['aero-under']=[{grade:95,activity:0},{grade:80,activity:20}];E.updateRanks(s);
+  // Both player and peers start at zero and use recorded categories.
+  assert.equal(s.comp,20);assert.equal(s.combined,76);assert.equal(s.combinedRank,1);assert.equal(s.rank,2);assert.ok(!('compRank' in s));
+  s.creditLedger[0].points=30;E.updateRanks(s);assert.equal(s.combined,78);assert.equal(s.combinedRank,1);assert.equal(s.rank,2);
 });
 test('degree changes and course repair recompute academics without inflating extracurricular scores',()=>{
-  const s=ready();s.grades=[{sem:0,grade:40,comp:80},{sem:1,grade:90,comp:50},{sem:8,grade:95,comp:60}];s.academicFailures=[{id:'f',sem:0,resolved:false}];s.sem=1;aggregateAcademics(s);assert.equal(s.gpa,65);assert.equal(s.comp,65);assert.equal(s.combined,65);
-  repairAcademicCourse(s,'f');assert.equal(s.gpa,75);assert.equal(s.comp,65);assert.equal(s.combined,73);s.sem=8;aggregateAcademics(s);assert.equal(s.gpa,95);assert.equal(s.comp,60);assert.equal(s.combined,88);
+  const s=ready();s.creditLedger=[{year:0,points:8,category:'certificate',key:'under'},{year:4,points:6,category:'certificate',key:'grad'}];s.grades=[{sem:0,grade:40,comp:80},{sem:1,grade:90,comp:50},{sem:8,grade:95,comp:60}];s.academicFailures=[{id:'f',sem:0,resolved:false}];s.sem=1;aggregateAcademics(s);assert.equal(s.gpa,65);assert.equal(s.comp,8);assert.equal(s.combined,53.6);
+  repairAcademicCourse(s,'f');assert.equal(s.gpa,75);assert.equal(s.comp,8);assert.equal(s.combined,61.6);s.sem=8;aggregateAcademics(s);assert.equal(s.gpa,95);assert.equal(s.comp,6);assert.equal(s.combined,77.2);
 });
 test('election first-year probability ignores placeholder grade, role experience and charm affect later elections',()=>{
   const election=(s,id)=>{s.card={kind:'cadre'};assert.ok(E.selectCadre(s,id));return E.probability(s,s.card.choices[0].probability);};
@@ -60,7 +60,7 @@ test('election first-year probability ignores placeholder grade, role experience
 });
 test('choice and free activity records retain actual trait-adjusted deltas and probability units',()=>{
   const s=ready('scholar');s.energy=60;s.card={id:'talk',kind:'choice',category:'social',consume:false,title:'一次交谈',choices:[{text:'谈谈',effects:{energy:10},probability:{base:.5,charm:.002,mood:.001},success:{text:'聊好了'},failure:{text:'没聊好'}}]};E.choose(s,0);const l=s.log.findLast(x=>x.title==='一次交谈');assert.equal(l.effects.energy,8);assert.ok(l.probability.reasons.every(r=>r.includes('个百分点')));
-  s.feedback=null;s.card={kind:'free'};s.freeTime={consume:false};E.freeAction(s,'rest');assert.equal(s.log.at(-1).effects.energy,9.6);assert.equal(s.log.at(-1).effects.mood,3);
+  s.feedback=null;s.card={kind:'free'};s.freeTime={consume:false};E.freeAction(s,'rest');assert.equal(s.log.at(-1).effects.energy,17.6);assert.equal(s.log.at(-1).effects.mood,2);
 });
 test('reviewed major and graduate choices have concrete varied text, preserving three options and actions',()=>{
   assert.ok(TEXT_REVISIONS.length>=140);const generic=/成果完成了。以后|生活不是只有冲刺。今天睡得|你的准备留在了本学期|认真推进这次工作/;

@@ -1,5 +1,6 @@
 import {academicMonth,vacationAt} from './calendar.js';
 import { MONTHLY_ALLOWANCE } from './economy.js';
+import {settleCadreCredits} from './score-ledger.js';
 
 // All values here describe the fictional game, not real admission or living costs.
 export const CADRE_ROLES = [
@@ -80,7 +81,7 @@ export function initializeLife(s) {
   s.worldSeed??=s.rng;s.traits??={};s.finances??=[];s.unpaidLiving??=0;s.cadreHistory??=[];s.termBehavior??={studyActions:0,missed:0};
   s.policy??=createPolicy(s);s.cadre??=null;
   if(fresh&&s.committee&&s.sem<8&&!s.cadre){const start=Math.floor(s.sem/2)*2;s.cadre={role:'class-leader',startSem:start,endSem:start+2,performance:0,tasks:0,legacy:true};s.cadreHistory.push({...s.cadre});}
-  if(s.cadre&&(s.sem>=s.cadre.endSem||s.sem>=8)){s.previousCadre=structuredClone(s.cadre);s.cadre=null;}
+  if(s.cadre&&(s.sem>=s.cadre.endSem||s.sem>=8)){settleCadreCredits(s);s.previousCadre=structuredClone(s.cadre);s.cadre=null;}
   s.committee=!!s.cadre;normalizeRelationship(s);s.rulesRevision=5;
 }
 export function cadreAvailable(s,r) {

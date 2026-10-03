@@ -7,6 +7,7 @@ export function wellbeingDescription(key,value){
 }
 export function exertionAvailable(s,effects={},critical=false){
   if(critical)return {ok:true,reason:''};
+  if(effects.exercise&&(s.exercisePauseUntil??-1)>s.eventClock)return {ok:false,reason:'身体恢复中，先按医嘱休整'};
   // Fatigue changes efficiency and scenes, but never locks ordinary activities.
   return {ok:true,reason:''};
 }

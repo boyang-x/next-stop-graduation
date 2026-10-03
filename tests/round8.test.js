@@ -177,10 +177,10 @@ test('high preparation still grows and affects grades, without early hard trunca
   s.card={id:'high-study',kind:'choice',consume:false,choices:[{text:'继续复习',effects:{study:6,energy:-4},result:'完成复习。'}]};
   E.choose(s,0);assert.ok(s.study>36);assert.ok(s.feedback.effects.study>0&&s.feedback.effects.study<6);assert.equal(s.energy,0);assert.ok(semesterGrade(s)>grade);assert.ok(s.feedback.text.includes('增长会逐渐放缓'));
 });
-test('six lottery distributions reach approved win/profit targets and grand jackpot exactly 1/500',()=>{
+test('six lottery distributions reach approved win/profit targets and grand jackpot exactly 1/100',()=>{
   assert.deepEqual(LOTTERY_TICKETS.map(t=>t.price),[10,20,50,100,500,1000]);
-  LOTTERY_TICKETS.forEach((t,i)=>{const stats=lotteryStats(t);assert.ok(Math.abs(stats.winChance-(.4+i*.04))<1e-12);assert.ok(Math.abs(stats.profitChance-(.15+i*.03))<1e-12);assert.equal(drawPrize(t.id,stats.jackpotChance/2),10000000);assert.ok(t.prizes.some(([v])=>v>0&&v<t.price));});
-  const grand=LOTTERY_TICKETS.at(-1);assert.equal(lotteryStats(grand).jackpotChance,1/500);assert.equal(drawPrize(grand.id,.002),20000);assert.ok(lotteryStats(grand).returnRatio>20);
+  LOTTERY_TICKETS.forEach((t,i)=>{const stats=lotteryStats(t);assert.ok(Math.abs(stats.winChance-(.55+i*.05))<1e-12);assert.ok(Math.abs(stats.profitChance-(.25+i*.05))<1e-12);assert.equal(drawPrize(t.id,stats.jackpotChance/2),10000000);assert.ok(t.prizes.some(([v])=>v>0&&v<t.price));});
+  const grand=LOTTERY_TICKETS.at(-1);assert.equal(lotteryStats(grand).jackpotChance,1/100);assert.equal(drawPrize(grand.id,.01),1000000);assert.ok(lotteryStats(grand).returnRatio>20);
 });
 test('high-requirement roles need academic or actual project plus internship preparation',()=>{
   const s=ready(),job=JOBS.find(j=>j.category==='tech'&&j.tier===3&&j.degree==='本科');s.gpa=77;
@@ -235,12 +235,12 @@ test('completed or cancelled branches release all their temporary context, inclu
     queueFollowUp(s,link,scope);s.eventClock=99;pruneStories(s);for(const flag of link.clearFlags)assert.equal(flags[flag],false,id+flag);
   }
 });
-test('delaying a candidate confession can reschedule the same follow-up instead of dropping the branch',()=>{
+test('delaying a candidate confession queues a new interaction instead of replaying the same scene',()=>{
   const s=ready();s.candidate={id:'person',meetingId:'candidate-1',gender:'female',flags:{}};
   queueFollowUp(s,{id:'social-new-invite',scope:'candidate',after:0});const current=s.storyQueue[0];
   s.card={...prepareStoryEvent(s,EVENTS.find(e=>e.id==='social-new-invite')),kind:'choice',consume:true,_follow:current};
   assert.ok(E.choose(s,1));assert.equal(s.storyQueue.length,1);assert.notEqual(s.storyQueue[0],current);
-  E.continueFeedback(s);assert.ok(s.storyQueue.some(q=>q.id==='social-new-invite'));
+  E.continueFeedback(s);assert.ok(s.storyQueue.some(q=>q.id!=='social-new-invite'&&EVENTS.some(e=>e.id===q.id&&e.candidate)));
 });
 
 
@@ -253,11 +253,11 @@ test('second-attempt pool is exclusive and student-life scenes cannot misstate g
   for(const e of gap.filter(e=>e.semesters))assert.equal(E.eventEligible(s,e),false);
   s.sem=15;assert.ok(gap.every(e=>E.eventEligible(s,e)));
 });
-test('same-node rescheduling survives serializing the current card and queue separately',()=>{
+test('new candidate follow-up survives serializing the current card and queue separately',()=>{
   const s=ready();s.candidate={id:'person',meetingId:'candidate-serialized',gender:'female',flags:{}};
   queueFollowUp(s,{id:'social-new-invite',scope:'candidate',after:0});
   s.card={...prepareStoryEvent(s,EVENTS.find(e=>e.id==='social-new-invite')),kind:'choice',consume:true,_follow:s.storyQueue[0]};
   const restored=JSON.parse(JSON.stringify(s));assert.notEqual(restored.card._follow,restored.storyQueue[0]);
   assert.ok(E.choose(restored,1));assert.equal(restored.storyQueue.length,1);assert.notEqual(restored.storyQueue[0].queueId,s.storyQueue[0].queueId);
-  E.continueFeedback(restored);assert.ok(restored.storyQueue.some(q=>q.id==='social-new-invite'));
+  E.continueFeedback(restored);assert.ok(restored.storyQueue.some(q=>q.id!=='social-new-invite'&&EVENTS.some(e=>e.id===q.id&&e.candidate)));
 });

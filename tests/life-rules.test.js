@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { createGame,ensureCard,choose,continueFeedback,advanceNotice,selectCadre,applyEffects,hasTag,freeAction,summary,updateRanks } from '../src/engine.js';
 import { CADRE_ROLES,cadreAvailable,importantExperiences,changeIntimacy,initializeLife,monthlyBudget,policyResult } from '../src/life-rules.js';
 import { PEOPLE } from '../src/content.js';
-function ready(seed=41){const s=createGame({school:'aero',major:'cs',background:'ordinary'},seed);s.card=null;s.feedback=null;s.notices=[];s.phase='events';return s;}
+function ready(seed=41){const s=createGame({school:'aero',major:'cs',background:'ordinary'},seed);s.card=null;s.feedback=null;s.notices=[];s.phase='events';s.monthlyFreeDone=Object.fromEntries(Array.from({length:80},(_,i)=>[`${Math.floor(i/5)}-${i%5}`,true]));return s;}
 function notices(s){while(s.card?.kind==='notice')advanceNotice(s);}
 function partner(s){s.relationship={id:'current',person:PEOPLE[0],stage:'dating',intimacy:55,memories:0,flags:{},lastContact:s.calendarTick};return s.relationship;}
 test('policy differs by school major and run, persists unchanged after publish and refresh',()=>{

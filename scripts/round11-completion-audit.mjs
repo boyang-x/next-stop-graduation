@@ -1,0 +1,30 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import path from 'node:path';
+import {createHash} from 'node:crypto';
+import {execFileSync} from 'node:child_process';
+import {EVENTS} from '../src/content.js';
+import {createGame} from '../src/engine.js';
+import {BALANCE_REVIEW} from '../src/balance-rules.js';
+import {RELATIONSHIP_EXPANSION} from '../src/relationship-expansion.js';
+import {MISFORTUNE_EVENTS} from '../src/misfortune-events.js';
+
+const read=p=>fs.readFileSync(p,'utf8').replace(/^\uFEFF/,'');
+const browserResult=p=>JSON.parse(read(p).match(/### Result\s*\n([^\n]+)/)[1]);
+const branch=execFileSync('git',['branch','--show-current'],{encoding:'utf8'}).trim();
+assert.equal(branch,'feat/pixel-campus');assert.equal(createGame({},741).comp,0);
+assert.equal(EVENTS.length,361);assert.equal(EVENTS.reduce((n,e)=>n+e.choices.length,0),1083);
+assert.equal(BALANCE_REVIEW.length,900);assert.equal(RELATIONSHIP_EXPANSION.length,48);assert.equal(MISFORTUNE_EVENTS.length,12);
+assert.match(read('output/round11-tests-final.txt'),/tests 210/);assert.match(read('output/round11-tests-final.txt'),/fail 0/);
+const configText=read('output/round11-config-audit.json');const config=JSON.parse(configText.slice(configText.indexOf('{')));assert.deepEqual(config.errors,[]);
+const calibration=JSON.parse(read('output/round11-calibration.json'));assert.equal(calibration.runs,768);assert.equal(calibration.cases.length,768);
+for(const c of calibration.cases){assert.ok(c.ending);assert.equal(c.pending,0);assert.equal(c.duplicates,0);}
+const ui=browserResult('output/round11-ui-final.txt'),full=browserResult('output/round11-full-ui-final.txt');
+assert.equal(ui.passed,true);assert.equal(ui.cases.length,9);assert.deepEqual(ui.errors,[]);assert.equal(full.passed,true);assert.deepEqual(full.errors,[]);
+assert.ok(fs.statSync('output/playwright/round11-summary.png').size>1000);assert.ok(fs.statSync('output/playwright/round11-summary.txt').size>1000);
+assert.ok(fs.existsSync('ROUND11_LIFE_RULES.md'));assert.ok(fs.existsSync('src/scene-clarity.js'));
+const files=[];for(const dir of ['src','tests','scripts'])for(const entry of fs.readdirSync(dir))if(fs.statSync(path.join(dir,entry)).isFile())files.push(path.join(dir,entry));
+files.push('package.json','README.md','GAME_DESIGN.md','VALIDATION.md','ROUND11_LIFE_RULES.md','SCENE_CLARITY_REVIEW.md');
+const hashes=Object.fromEntries(files.sort().map(p=>[p.replaceAll('\\','/'),createHash('sha256').update(fs.readFileSync(p)).digest('hex')]));
+const result={passed:true,branch,version:JSON.parse(read('package.json')).version,events:EVENTS.length,choices:1083,tests:210,simulationRuns:768,ui,full,hashes};
+fs.writeFileSync('output/round11-completion-audit.json',JSON.stringify(result,null,2));console.log(JSON.stringify({...result,hashes:undefined},null,2));

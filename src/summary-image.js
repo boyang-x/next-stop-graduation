@@ -1,4 +1,5 @@
 import {characterSVG} from './pixel-art.js';
+import {catSVG} from './campus-cat.js';
 import {brandLogo} from './pixel-marks.js';
 // Canvas uses local fonts and inline art only; no uploads or remote dependencies.
 const FONT='"Microsoft YaHei", "PingFang SC", "Noto Sans CJK SC", sans-serif';
@@ -30,6 +31,7 @@ export async function createSummaryImage(r){
   try{const img=new Image();img.src=artURL;await img.decode();ctx.imageSmoothingEnabled=false;
     ctx.fillStyle='#e2ebd3';ctx.fillRect(818,108,166,210);ctx.drawImage(img,838,121,132,198);
   }finally{URL.revokeObjectURL(artURL);}
+  if(r.catPhoto){const catURL=URL.createObjectURL(new Blob([catSVG()],{type:'image/svg+xml'}));try{const img=new Image();img.src=catURL;await img.decode();ctx.imageSmoothingEnabled=false;ctx.drawImage(img,922,268,62,48);}finally{URL.revokeObjectURL(catURL);}}
   const font=(size,bold=false)=>{ctx.font=`${bold?'700':'400'} ${size}px ${FONT}`;ctx.textBaseline='top';};
   const text=(value,x,y,size=30,color=ink,width=900,maxLines=2,lineHeight=size*1.5)=>{
     font(size,size>=40);ctx.fillStyle=color;const lines=wrapText(ctx,value,width,maxLines);lines.forEach((line,i)=>ctx.fillText(line,x,y+i*lineHeight));return y+lines.length*lineHeight;

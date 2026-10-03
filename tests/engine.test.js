@@ -62,7 +62,7 @@ test('an already resolved probability event cannot be rolled again before acknow
 });
 test('a history-gated choice becomes available only after the matching experience',()=>{
   const s=createGame({},20);s.card={id:'conditional-test',kind:'choice',choices:[{text:'讲实习案例',requiresAnyTags:['实习经历'],effects:{mood:5},result:'介绍了实习。'}]};
-  assert.equal(choose(s,0),false);assert.equal(s.mood,75);addHistory(s,'实习经历');assert.equal(choose(s,0),true);assert.equal(s.mood,80);
+  assert.equal(choose(s,0),false);assert.equal(s.mood,65);addHistory(s,'实习经历');assert.equal(choose(s,0),true);assert.equal(s.mood,67.5);
 });
 test('lottery payout is applied exactly once and opens the optional jackpot ending',()=>{
   const s=createGame({},23);s.notices=[];s.rng=0;s.card={kind:'lottery'};s.freeTime={consume:true};const before=s.balance;
@@ -70,7 +70,7 @@ test('lottery payout is applied exactly once and opens the optional jackpot endi
   continueFeedback(s);assert.equal(s.card.id,'jackpot');choose(s,0);assert.equal(s.ending.title,'幸运人生');assert.equal(summary(s).grade,'未结算');
 });
 test('lottery distribution includes jackpot, small prize and no prize, with explicit boundaries',()=>{
-  assert.equal(lotteryPrize(0),10000000);assert.equal(lotteryPrize(.00005),1000);assert.equal(lotteryPrize(.005),400);assert.equal(lotteryPrize(.02),150);assert.equal(lotteryPrize(.1),100);assert.equal(lotteryPrize(.23),50);assert.equal(lotteryPrize(.42),25);assert.equal(lotteryPrize(.9),0);
+  assert.equal(lotteryPrize(0),10000000);assert.equal(lotteryPrize(.00025),1000000);assert.equal(lotteryPrize(.00075),100000);assert.equal(lotteryPrize(.005),1000);assert.equal(lotteryPrize(.02),400);assert.equal(lotteryPrize(.05),150);assert.equal(lotteryPrize(.1),100);assert.equal(lotteryPrize(.4),50);assert.equal(lotteryPrize(.6),25);assert.equal(lotteryPrize(.9),0);
 });
 test('special jackpot can end or continue without removing the payout',()=>{
   const a=createGame({},1);a.card=null;a.notices=[];a.deferred='jackpot';a.balance=10000000;ensureCard(a);choose(a,1);continueFeedback(a);assert.equal(a.ending,null);assert.equal(a.balance,10000000);

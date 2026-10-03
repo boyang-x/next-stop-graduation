@@ -2,17 +2,17 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createGame,choose,continueFeedback,ensureCard,advanceNotice,freeAction,actionDuration,activitiesFor,acceptNoOffer} from '../src/engine.js';
 import {semesterGrade,recordAcademicFailure,repairAcademicCourse,degreeCourses} from '../src/academics.js';
-function ready(){const s=createGame({background:'ordinary'},212);s.card=null;s.notices=[];s.feedback=null;s.deferred=null;s.phase='events';s.hooks['0-0-committee']=true;return s;}
+function ready(){const s=createGame({background:'ordinary'},212);s.card=null;s.notices=[];s.feedback=null;s.deferred=null;s.phase='events';s.hooks['0-0-committee']=true;s.monthlyFreeDone=Object.fromEntries(Array.from({length:80},(_,i)=>[`${Math.floor(i/5)}-${i%5}`,true]));return s;}
 function drain(s){for(let i=0;i<40&&s.card?.kind==='notice';i++)advanceNotice(s);}
 function act(s,duration){s.card={kind:'choice',consume:true,duration,choices:[{text:'做事',effects:{},result:'完成'}]};choose(s,0);continueFeedback(s);drain(s);}
 test('short, ordinary and long work consume different time and cross month exactly once',()=>{
   const s=ready(),tick=s.calendarTick;act(s,1);assert.equal(s.week,1);assert.equal(s.month,0);freeAction(s,'skip');act(s,2);assert.equal(s.week,3);assert.equal(s.month,0);act(s,4);assert.equal(s.week,3);assert.equal(s.month,1);assert.equal(s.calendarTick,tick+1);assert.equal(s.finances.filter(f=>f.key==='calendar-1').length,1);
 });
 test('declining grants an afternoon but it cannot recursively grant more time',()=>{
-  const s=ready();s.card={kind:'choice',consume:true,duration:3,choices:[{text:'留空',freeTimeGain:1,result:'留空'}]};choose(s,0);continueFeedback(s);assert.equal(s.week,0);freeAction(s,'rest');continueFeedback(s);assert.equal(s.week,1);assert.equal(freeAction(s,'rest'),false);assert.equal(s.eventClock,1);
+  const s=ready();s.card={kind:'choice',consume:true,duration:3,choices:[{text:'留空',freeTimeGain:1,result:'留空'}]};choose(s,0);continueFeedback(s);assert.equal(s.week,0);freeAction(s,'rest');continueFeedback(s);assert.equal(s.week,2);assert.equal(freeAction(s,'rest'),false);assert.equal(s.eventClock,1);
 });
 test('action tiers and immediate conversations do not charge another month',()=>{
-  const card={consume:true,duration:2};assert.equal(actionDuration(card,{effects:{study:6}}),3);assert.equal(actionDuration(card,{effects:{balance:500}}),4);assert.equal(actionDuration(card,{freeTimeGain:1}),1);assert.equal(actionDuration({...card,duration:0},{effects:{study:8}}),0);assert.equal(actionDuration({consume:false},{duration:4}),0);
+  const card={consume:true,duration:2};assert.equal(actionDuration(card,{effects:{study:6}}),2);assert.equal(actionDuration(card,{effects:{balance:500}}),4);assert.equal(actionDuration(card,{freeTimeGain:1}),2);assert.equal(actionDuration({...card,duration:0},{effects:{study:8}}),0);assert.equal(actionDuration({consume:false},{duration:4}),0);
 });
 test('a month-long action reaches the exam milestone before discretionary events',()=>{
   const s=ready();s.sem=6;s.month=2;s.week=2;s.route='exam';s.policy.published=true;act(s,4);assert.equal(s.month,3);assert.equal(s.card.kind,'quiz');assert.equal(s.quiz.purpose,'exam');assert.equal(s.freeTime,null);
@@ -26,8 +26,8 @@ test('normal attendance can fall from a previously high grade; regular study and
 test('an actual neglected term records failed courses and next term offers remediation',()=>{
   const s=ready();s.month=5;s.study=-12;s.termBehavior={missed:6,studyActions:0};ensureCard(s);assert.equal(s.academicFailures.length,1);assert.equal(s.academicFailures[0].resolved,false);assert.ok(s.grades[0].grade<60);drain(s);if(s.card.kind==='free'){freeAction(s,'skip');drain(s);}if(s.card.kind==='focus'){s.card=null;ensureCard(s);}drain(s);assert.equal(s.card.id,'course-remediation');assert.equal(s.card.choices.length,3);
 });
-test('remediation preserves original grade and activity points while recomputing cumulative academic results',()=>{
-  const s=ready();s.grade=48;s.grades=[{sem:0,grade:48,comp:43.4},{sem:1,grade:80,comp:64}];recordAcademicFailure(s);s.sem=1;assert.ok(repairAcademicCourse(s,'course-0'));assert.equal(s.grades[0].originalGrade,48);assert.equal(s.grades[0].grade,60);assert.equal(s.grades[0].comp,43.4);assert.equal(s.gpa,70);assert.equal(degreeCourses(s).length,0);assert.equal(repairAcademicCourse(s,'course-0'),false);
+test('remediation preserves original grade and recorded credits while recomputing cumulative academics',()=>{
+  const s=ready();s.creditLedger=[{year:0,category:'certificate',points:4,key:'cert'}];s.grade=48;s.grades=[{sem:0,grade:48,comp:43.4},{sem:1,grade:80,comp:64}];recordAcademicFailure(s);s.sem=1;assert.ok(repairAcademicCourse(s,'course-0'));assert.equal(s.grades[0].originalGrade,48);assert.equal(s.grades[0].grade,60);assert.equal(s.grades[0].comp,4);assert.equal(s.gpa,70);assert.equal(degreeCourses(s).length,0);assert.equal(repairAcademicCourse(s,'course-0'),false);
 });
 test('no-offer graduation is blocked by unfinished courses and player may accept deferred graduation',()=>{
   const s=ready();s.sem=6;s.policy.published=true;s.grades=[{sem:0,grade:40,comp:32}];s.academicFailures=[{id:'course-0',sem:0,original:40,resolved:false,attempts:0}];s.jobResults=[];s.card={kind:'offers'};acceptNoOffer(s);assert.equal(s.ending,null);assert.equal(s.card.id,'course-remediation');assert.equal(s.card.consume,false);choose(s,2);assert.equal(s.ending.title,'毕业暂缓');assert.equal(s.ending.degree,'本科未毕业');

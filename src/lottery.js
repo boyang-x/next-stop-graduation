@@ -1,13 +1,13 @@
 // All odds are game settings, including the ten-million prize in EVERY denomination.
 export const LOTTERY_TICKETS = [
-  ['pocket','口袋小惊喜',10,.40,.15,1/100000],
-  ['small','校园小幸运',20,.44,.18,1/50000],
-  ['weekend','周末好彩头',50,.48,.21,1/20000],
-  ['festival','假日好时光',100,.52,.24,1/10000],
-  ['graduate','毕业鸿运',500,.56,.27,1/2000],
-  ['grand','人生大惊喜',1000,.60,.30,1/500],
-].map(([id,name,price,win,profit,jackpot])=>{
-  const prizes=[[10000000,jackpot],[price*20,.002],[price*8,.008],[price*3,.03],[price*2,profit-.04-jackpot],[price,win-profit-.10],[price/2,.10],[0,1-win]];
+  ['pocket','口袋小惊喜',10,.55,.25,1/20000,.0001,.0005],
+  ['small','校园小幸运',20,.60,.30,1/10000,.0002,.001],
+  ['weekend','周末好彩头',50,.65,.35,1/4000,.0005,.002],
+  ['festival','假日好时光',100,.70,.40,1/2000,.001,.004],
+  ['graduate','毕业鸿运',500,.75,.45,1/400,.003,.008],
+  ['grand','人生大惊喜',1000,.80,.50,1/100,.006,.012],
+].map(([id,name,price,win,profit,jackpot,million,hundredThousand])=>{
+  const prizes=[[10000000,jackpot],[1000000,million],[100000,hundredThousand],[price*20,.01],[price*8,.025],[price*3,.055],[price*2,profit-.09-jackpot-million-hundredThousand],[price,win-profit-.10],[price/2,.10],[0,1-win]];
   return {id,name,price,prizes,gameSetting:true};
 });
 export function ticketOf(id='weekend'){return LOTTERY_TICKETS.find(t=>t.id===id);}
