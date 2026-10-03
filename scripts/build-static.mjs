@@ -12,6 +12,8 @@ mkdirSync(output, { recursive: true });
 // Avoid Node 24's recursive rm bug on Windows paths containing Chinese text.
 clearDirectory(output);
 copy(path.join(root, 'assets'), path.join(output, 'assets'));
+// Domain ownership proofs must remain available at the site root after every deploy.
+copy(path.join(root, 'public'), output);
 
 // The original stylesheet order is significant for desktop/mobile overrides.
 const sourceHTML = readFileSync(path.join(root, 'index.html'), 'utf8');
