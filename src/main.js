@@ -1,6 +1,5 @@
 import {PUBLIC_POSTS} from './career-content.js';
 import {pixelScene, pixelPortrait, sceneFor, pixelIcon, characterSVG} from './pixel-art.js';
-import {createSummaryImage} from './summary-image.js';
 import {AUTHOR, AUTHOR_URL, SITE_URL} from './site-info.js';
 import {PERSONALITIES, personalityOf, energyMax, energyPercent} from './personality.js';
 import {monthLabel} from './calendar.js';
@@ -107,7 +106,7 @@ app.addEventListener('click',async e=>{const el=e.target.closest('[data-action]'
   if(a==='free-tab'){activityCategory=i;render();return;}
   if(['rules','history','log','profile'].includes(a)){modalReturnAction=a;modal=a;moreOpen=false;history.pushState({campusModal:true},'');render();document.querySelector('.modal [data-action="close"]')?.focus();return;}
   if(a==='close'){closeModal();return;}
-  if(a==='summary-image'&&state?.ending){if(posterBusy)return;posterBusy=true;const button=e.target.closest('button');button.disabled=true;button.textContent='正在生成图片…';try{const sourceState=state,r=summary(state),result=await createSummaryImage(r);if(state!==sourceState||page!=='game')return;if(poster)URL.revokeObjectURL(poster.url);poster={url:URL.createObjectURL(result.blob),name:r.name};modal='poster';render();}catch(error){state.notifications??=[];state.notifications.push({title:'图片暂未生成',text:error.message});save();render();}finally{posterBusy=false;}return;}
+  if(a==='summary-image'&&state?.ending){if(posterBusy)return;posterBusy=true;const button=e.target.closest('button');button.disabled=true;button.textContent='正在生成图片…';try{const sourceState=state,r=summary(state),{createSummaryImage}=await import('./summary-image.js'),result=await createSummaryImage(r);if(state!==sourceState||page!=='game')return;if(poster)URL.revokeObjectURL(poster.url);poster={url:URL.createObjectURL(result.blob),name:r.name};modal='poster';render();}catch(error){state.notifications??=[];state.notifications.push({title:'图片暂未生成',text:error.message});save();render();}finally{posterBusy=false;}return;}
   if(a==='poster-download'&&poster){const link=document.createElement('a');link.href=poster.url;link.download=poster.name.replace(/[\\/:*?"<>|]/g,'_')+'-大学生涯总结.png';link.click();return;}
   if(a==='download'){const blob=new Blob([summaryText(state),`\n\n《下一站，毕业》 · 原创小游戏：${AUTHOR}\n官方游戏：${SITE_URL}\n© 2026 ${AUTHOR} · 保留权利`],{type:'text/plain;charset=utf-8'});const url=URL.createObjectURL(blob);const link=document.createElement('a');link.href=url;link.download=`${state.name.replace(/[\\/:*?"<>|]/g,'_')}-大学人生总结.txt`;link.click();setTimeout(()=>URL.revokeObjectURL(url),1000);return;}
   if(!state)return;

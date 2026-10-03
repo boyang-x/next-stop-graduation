@@ -1,6 +1,6 @@
 {
   "name": "campus-life-simulator",
-  "version": "0.13.2",
+  "version": "0.13.3",
   "private": true,
   "type": "module",
   "scripts": {
@@ -8,5 +8,8 @@
     "dev": "node server.mjs",
     "test": "node --test tests/*.test.js",
     "check": "node scripts/audit.mjs"
+  },
+  "devDependencies": {
+    "esbuild": "0.28.2"
   }
 }
