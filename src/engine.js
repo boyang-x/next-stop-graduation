@@ -4,6 +4,7 @@ import {academicMonth,academicYear,vacationMonths,vacationAt,monthLabel} from '.
 import {matchesEventConditions} from './event-conditions.js';
 import {personalityOf, PERSONALITIES, energyMax, energyPercent, changeEnergy, roundState} from './personality.js';
 import { buildPaper, sectionScores, weightedExamScore, jobPaperScore } from './exam-rules.js';
+import { ADMISSION_TARGETS, INTERVIEW_STYLES, interviewAssessment } from './admission-rules.js';
 import { INITIAL_BALANCE, MONTHLY_ALLOWANCE, internshipTerms } from './economy.js';
 import { learningFactor, exertionAvailable, recoveryNeeded } from './wellbeing.js';
 import { describeRun } from './run-summary.js';
@@ -128,6 +129,11 @@ export function migrateSave(raw){
   };
   if(!s.feedback)s.card=refresh(s.card);
   if(s.freeTime?.returnCard)s.freeTime.returnCard=refresh(s.freeTime.returnCard);
+  if(!s.admission&&s.route==='exam'&&s.examScore!=null&&s.examScoreVersion!==2&&!s.feedback){
+    const last=s.quizHistory.filter(q=>q.purpose==='exam').at(-1);
+    if(last?.weightedScore!=null){s.examScore=last.weightedScore;s.examScoreVersion=2;}
+    if(s.card?.id==='exam-interview'){s.card=null;examInterview(s);}
+  }
   return s;
 }
 export function setIdentity(s,gender){if(!['male','female'].includes(gender))return false;s.gender=gender;s.romancePreference=gender==='female'?'male':'female';return true;}
@@ -426,7 +432,13 @@ export function ensureCard(s) {
   s.monthlyFreeDone??={};
   if(s.weekendDue&&!s.monthlyFreeDone[key]){
     s.monthlyFreeDone[key]=true;s.hooks[`weekend-${key}`]=true;s.weekendDue=false;
-    if(s.lastLeisureTick!==(s.calendarTick||0)){maybeRelationshipConflict(s);s.freeTime={consume:false,leisure:true,scheduled:true};freeCard(s);return;}
+    if(s.lastLeisureTick!==(s.calendarTick||0)){
+      maybeRelationshipConflict(s);s.freeTime={consume:false,leisure:true,scheduled:true};freeCard(s);
+      if(s.monthlyLeisurePlan?.[key]&&s.monthlyLeisurePlan[key]!=='manual')runPlannedLeisure(s,key);
+      else if(s.monthlyLeisurePlan?.[key]){delete s.monthlyLeisurePlan[key];s.freeTime.manual=true;}
+      return;
+    }
+    if(s.monthlyLeisurePlan?.[key])delete s.monthlyLeisurePlan[key];
   }
   if(s.hooks['weekend-'+key])s.weekendDue=false;
   if(s.pendingWeeks>0){advancePendingWeeks(s);ensureCard(s);return;}
@@ -502,10 +514,12 @@ export function choose(s,index) {
   const choice=card.choices[index];if(!choice)return false;
   if(!choiceAvailable(s,choice).ok)return false;
   const timeCost=card.id==='internship-work'&&s.internship&&card.consume?MONTH_UNITS:actionDuration(card,choice,s);
-  const p=choice.probability?probability(s,choice.probability):null;
+  const p=choice.probability!==undefined?probability(s,choice.probability):null;
+  if(p&&choice.examAssessment)p.reasons=[...choice.examAssessment.reasons];
   initializeLife(s);const unlockStart=s.routineUnlocks?.length||0;const before={intimacy:s.relationship?.intimacy||0,energy:s.energy,mood:s.mood,charm:s.charm,balance:s.balance,study:s.study,activity:s.activity,credit:yearScore(s),tags:s.history.length};applyEffects(s,choice.effects);
   let text=choice.result||'',success=null,action=choice.action,resolvedOutcome=null;
   if(p){success=random(s)<p.value;const outcome=success?choice.success:choice.failure;resolvedOutcome=outcome;applyEffects(s,outcome.effects);text=outcome.text;action=outcome.action||action;}
+  if(choice.examAssessment){s.examAssessment={...choice.examAssessment,accepted:success,time:dateName(s)};s.examAssessments??=[];s.examAssessments.push(structuredClone(s.examAssessment));}
   if(action==='browseLottery')action=null;
   if(choice.onceKey)s.hooks[choice.onceKey.startsWith('term:')?choice.onceKey+'-'+s.sem:choice.onceKey]=true;
   const unlocked=s.routineUnlocks?.slice(unlockStart)||[];if(unlocked.length)text+=' '+unlocked.map(x=>x.note).join(' ');
@@ -528,6 +542,7 @@ export function choose(s,index) {
   Object.assign(selectionRecord, {effects,probability:p?{...p,success}:null});
   if(s.ending){notice(s,card.title+' · 结果',text);return true;}
   s.feedback={inline,source:card.title,freeTimeComplete:!!card.socialActivity||!!card.homeVisit,title:card.id==='cadre-election'?(success?'你当选了':'这次没能当选'):card.title+' · 结果',text,effects,probability:p?{...p,success}:null,consume:timeCost>0,timeCost,fromSem:s.sem,freeTimeGain:choice.freeTimeGain||0,openLottery:choice.action==='browseLottery'};
+  if(choice.examAssessment)s.feedback.admission=structuredClone(s.examAssessment);
   return true;
 }
 export function acknowledgeNotification(s){if(!s.notifications?.length)return false;s.notifications.shift();return true;}
@@ -574,7 +589,45 @@ export function maybeRelationshipConflict(s){
   log(s,'相处中的意外','你们因临时安排和误解发生争执，亲密度降低20。');
   queueFollowUp(s,{id:'love-unexpected-conflict',clearFlags:['conflictPending','conflictAvoided','conflictDiscussed'],after:0,expires:10,priority:4},'relationship');return true;
 }
-function freeCard(s,lottery=false){const title=s.freeTime?.holiday?`${s.freeTime.holiday}，给自己一点时间`:s.freeTime?.leisure?'周末，今天想做什么？':'这个下午，你还有一点时间';s.card={id:'free-time',kind:lottery?'lottery':'free',group:'common',title:lottery?'便利店的刮刮乐柜台':title,text:lottery?'挑一张，刮开看看运气。':s.freeTime?.holiday?'选择整个假期的主要安排。假期收入与必要开销已结算，额外消费单独支付。':'选一件想做的事，把时间留给自己。'};}
+function freeCard(s,lottery=false){const title=s.freeTime?.holiday?`${s.freeTime.holiday}，给自己一点时间`:s.freeTime?.leisure?'本月的一个周末':'这个下午，你还有一点时间';s.card={id:'free-time',kind:lottery?'lottery':'free',group:'common',title:lottery?'便利店的刮刮乐柜台':title,text:lottery?'挑一张，刮开看看运气。':s.freeTime?.holiday?`选择整个假期的一次主要安排${s.freeTime.holiday==='暑假'?'，覆盖七月—八月（8周）':''}。假期收支按自然月分别结算，额外消费单独支付。`:'选一件想做的事，把时间留给自己。'};}
+export function monthlyLeisureSlots(s){
+  if(!s.freeTime?.scheduled||s.freeTime.manual||s.card?.kind!=='free'||s.freeTime.holiday)return [];
+  const last=Math.min(4,s.month+Math.floor(((s.week||0)+(s.pendingWeeks||0))/MONTH_UNITS));
+  const slots=[];
+  for(let month=s.month;month<=last;month++){
+    const key=`${s.sem}-${month}`;
+    if(month===s.month||!s.monthlyFreeDone?.[key])slots.push({key,sem:s.sem,month,label:monthLabel(academicMonth({...s,month}))});
+  }
+  return slots;
+}
+export function submitLeisurePlan(s,actions){
+  const slots=monthlyLeisureSlots(s);
+  if(s.feedback||slots.length<2||!Array.isArray(actions)||actions.length!==slots.length)return false;
+  const allowed=['rest','walk','study','work','exercise','skip','manual'];
+  if(actions.some(a=>!allowed.includes(a)))return false;
+  s.monthlyLeisurePlan??={};
+  slots.forEach((slot,i)=>{s.monthlyLeisurePlan[slot.key]=actions[i];});
+  if(actions[0]==='manual'){delete s.monthlyLeisurePlan[slots[0].key];s.freeTime.manual=true;return true;}
+  runPlannedLeisure(s,slots[0].key);
+  return true;
+}
+function runPlannedLeisure(s,key){
+  const action=s.monthlyLeisurePlan[key];delete s.monthlyLeisurePlan[key];
+  const date=dateName(s);let result;
+  if(action==='skip'){s.lastLeisureTick=s.calendarTick||0;log(s,'空闲时光','你保留了一段没有安排的时间。');result={text:'不做额外安排',effects:{}};}
+  else if(freeAction(s,action)){result=s.feedback;s.feedback=null;}
+  else {s.freeTime.manual=true;log(s,'课余安排需要调整','原定活动在当前状态下无法进行，请重新安排本月周末。','notice');return;}
+  s.leisureReportRows??=[];s.leisureReportRows.push({date,text:result.text,effects:result.effects||{}});
+  finishFreeTime(s);ensureCard(s);
+  if(s.leisureReportRows?.length&&!s.feedback&&!s.ending){
+    const rows=s.leisureReportRows;delete s.leisureReportRows;
+    s.leisureReturnCard=s.card;s.card=null;
+    const effects={};for(const row of rows)for(const [name,value] of Object.entries(row.effects))if(typeof value==='number')effects[name]=roundState((effects[name]||0)+value);
+    s.feedback={title:'这段时间的课余安排',text:`已完成 ${rows.length} 个月的安排，每月分别结算。`,rows,effects,consume:false,leisureReport:true};
+    const bills=s.notifications?.filter(n=>n.title==='本月生活账单')||[];
+    if(bills.length>1)s.notifications=[...s.notifications.filter(n=>n.title!=='本月生活账单'),{title:'这段时间的生活账单',text:bills.map(n=>n.text).join('；')}];
+  }
+}
 export const FREE_ACTIVITIES=AFTERNOON_ACTIVITIES;
 function finishFreeTime(s){
   const f=s.freeTime;if(f?.holiday)s.holidayStudy=s.study;s.freeTime=null;
@@ -607,6 +660,7 @@ export function revealTicket(s){if(s.card?.kind!=='scratch'||s.feedback||!s.free
 export function continueFeedback(s) {
   if(!s.feedback)return false;
   const f=s.feedback;s.feedback=null;s.card=null;
+  if(f.leisureReport){s.card=s.leisureReturnCard;delete s.leisureReturnCard;ensureCard(s);return true;}
   if(f.ticketComplete){if(s.deferred==='jackpot'){s.freeTime.ticket=null;s.freeTime.resumeAfterJackpot=true;}else finishFreeTime(s);}
   else if(s.freeTime?.resumeAfterJackpot||f.freeTimeComplete)finishFreeTime(s);
   else if(f.freeTimeGain){s.freeTime={remaining:1,consume:f.consume,timeCost:f.timeCost,source:s.log.at(-1)?.title};freeCard(s,f.openLottery);return true;}
@@ -648,8 +702,8 @@ export function nextQuestion(s) {
   s.card=null;
   if(quiz.purpose==='jobs'){s.deferred='jobInterview';notice(s,'笔试成绩',`通用测评 ${quiz.generalScore} 分。专业题结果按岗位类别分别计算。`);}
   if(quiz.purpose==='exam'){
-    const preparation=clamp(s.gpa*.25+(hasTag(s,'备考经验')?8:0)+(hasTag(s,'规律复习')?5:0),0,35);
-    s.examScore=Math.round(quiz.weightedScore*.65+preparation);notice(s,'初试成绩公布',`科目计分：${Object.entries(quiz.sections).map(([name,x])=>name+' '+x.score+' 分').join('，')}。加权短卷 ${quiz.weightedScore} 分，学业与备考折算 ${Math.round(preparation)} 分，模拟初试综合 ${s.examScore} 分。复试结果在下一学期揭晓。`);
+    s.examScore=quiz.weightedScore;s.examScoreVersion=2;s.examAssessment=null;
+    notice(s,'初试成绩公布',`科目计分：${Object.entries(quiz.sections).map(([name,x])=>name+' '+x.score+' 分').join('，')}。初试加权成绩 ${s.examScore} 分。录取综合成绩按初试70%、复试30%计算，学业与备考准备在复试计分。复试在下一学期进行。`);
   }
   if(quiz.purpose==='civil'){
     s.civilScore=quiz.weightedScore;notice(s,'公共岗位笔试结果',`行测 ${quiz.sections.行测.score} 分，材料分析 ${quiz.sections.材料分析.score} 分，加权短卷 ${quiz.weightedScore} 分。材料分析为申论思路的简化选择题；后续选拔在春季继续。`);
@@ -657,13 +711,14 @@ export function nextQuestion(s) {
   ensureCard(s);return true;
 }
 function examInterview(s) {
-  const line=s.target==='aero'?72:s.target==='finance'?62:52;
+  const line=(ADMISSION_TARGETS[s.target]||ADMISSION_TARGETS.normal).writtenLine;
   if((s.examScore??0)<line){addHistory(s,'考研失利',`第${s.attempt}次`);s.deferred='fallbackExam';notice(s,'考研选拔结果',`初试综合 ${s.examScore??0} 分，目标要求 ${line} 分，这次未进入录取。`);ensureCard(s);return;}
-  fixed(s,'exam-interview','复试：谈谈你的经历','初试达到目标要求。老师请你讲一件自己认真完成的事情。',[
-    {text:'用具体成果说明过程',probability:{base:.6,charm:.001,tags:{'科研经历':.12,'竞赛获奖':.1,'软件项目':.08,'工程项目':.08,'教育实习':.08}},success:{text:'复试通过，你获得了录取。',action:'examAccepted'},failure:{text:'这次复试未被录取。',action:'examRejected'}},
-    {text:'坦诚讲学习与反思',probability:{base:.55,charm:.001,tags:{'规律复习':.12,'深度阅读':.1},grade:.003},success:{text:'你清楚地表达了自己的准备，获得录取。',action:'examAccepted'},failure:{text:'这次仍差了一点。',action:'examRejected'}},
-    {text:'围绕研究计划说明下一步',probability:{base:.5,charm:.001,tags:{'政策调研':.12,'深度阅读':.1,'科研接触':.05},grade:.002},success:{text:'问题与方法足够具体，你获得了录取。',action:'examAccepted'},failure:{text:'研究计划还不充分，这次未获录取。',action:'examRejected'}},
-  ]);
+  fixed(s,'exam-interview','复试：谈谈你的经历',`初试 ${s.examScore} 分，已达到 ${line} 分的复试要求。选择适合自己实际准备的回答，录取按初试70%＋复试30%综合计算。`,INTERVIEW_STYLES.map(style=>{
+    const assessment=interviewAssessment(s,style.id,hasTag);
+    return {text:style.text,note:`复试预估 ${assessment.interviewScore} 分 · 综合 ${assessment.combinedScore} 分 · 录取 ${Math.round(assessment.value*100)}%`,probability:assessment.value,examAssessment:assessment,
+      success:{text:assessment.value===1?'综合成绩达到稳录取线，你已获得录取。':'综合成绩通过本次选拔，你获得了录取。',action:'examAccepted'},
+      failure:{text:'本次综合成绩未取得录取名额，可以重新规划下一步。',action:'examRejected'}};
+  }));
 }
 // These actions are kept separate so admissions do not silently skip remaining undergraduate time.
 function applyAdmissionAction(s,action) {
@@ -728,7 +783,7 @@ export function summary(s) {
   const experiences=importantExperiences(s);const keywords=experiences.map(h=>h.tag);
   const graded=s.grades.some(g=>isGrad(s)?g.sem>=8&&g.sem<14:g.sem<8);
   const lottery={count:s.lotteryTransactions?.length||0,spent:(s.lotteryTransactions||[]).reduce((n,t)=>n+t.price,0),won:(s.lotteryTransactions||[]).filter(t=>t.revealed).reduce((n,t)=>n+t.prize,0)};lottery.net=lottery.won-lottery.spent;
-  return {recap:describeRun(s),catPhoto:currentCatPhoto(s),name:s.name,gender:s.gender,personality:personalityOf(s).name,charm:s.charm,creditLedger:s.creditLedger||[],programs:s.programs||[],lifetimeCredits:lifetimeCredits(s),energyMax:energyMax(s),applicationAcademic:s.applicationAcademic,lottery,quizHistory:s.quizHistory,ending:s.ending,school:schoolOf(s).name,originSchool:SCHOOLS.find(x=>x.id===s.originSchool).name,major:MAJORS[s.major].name,grade:graded?s.gpa:'未结算',rank:graded?`${s.rank}/${s.cohort}`:'未结算',comp:graded?s.comp:'未结算',combined:graded?s.combined:'未结算',combinedRank:graded?`${s.combinedRank}/${s.cohort}`:'未结算',balance:s.balance,energy:s.energy,mood:s.mood,keywords,experiences,cadreHistory:s.cadreHistory,finances:s.finances,policy:s.policy,intimacy:s.relationship?.intimacy??null,romances:s.romances,relationship:s.relationship?.person.name||'单身',offer:s.publicOffer|| (offer?{...offer,...s.selectedOffer}:null),epilogue:s.epilogue||'',history:s.history,log:s.log,examScore:s.examScore};
+  return {recap:describeRun(s),catPhoto:currentCatPhoto(s),name:s.name,gender:s.gender,personality:personalityOf(s).name,charm:s.charm,creditLedger:s.creditLedger||[],programs:s.programs||[],lifetimeCredits:lifetimeCredits(s),energyMax:energyMax(s),applicationAcademic:s.applicationAcademic,lottery,quizHistory:s.quizHistory,ending:s.ending,school:schoolOf(s).name,originSchool:SCHOOLS.find(x=>x.id===s.originSchool).name,major:MAJORS[s.major].name,grade:graded?s.gpa:'未结算',rank:graded?`${s.rank}/${s.cohort}`:'未结算',comp:graded?s.comp:'未结算',combined:graded?s.combined:'未结算',combinedRank:graded?`${s.combinedRank}/${s.cohort}`:'未结算',balance:s.balance,energy:s.energy,mood:s.mood,keywords,experiences,cadreHistory:s.cadreHistory,finances:s.finances,policy:s.policy,intimacy:s.relationship?.intimacy??null,romances:s.romances,relationship:s.relationship?.person.name||'单身',offer:s.publicOffer|| (offer?{...offer,...s.selectedOffer}:null),epilogue:s.epilogue||'',history:s.history,log:s.log,examScore:s.examScore,examAssessments:s.examAssessments||[]};
 }
 function recordText(x){
   const labels={energy:'精力',mood:'心情',charm:'魅力',balance:'余额',study:'学习积累',activity:'活动积累',credit:'本学年综测',intimacy:'亲密度'};
@@ -737,4 +792,4 @@ function recordText(x){
   const chance=x.probability?`本次成功率 ${Math.round(x.probability.value*100)}%${x.probability.reasons.length?'；'+x.probability.reasons.join('；'):''}`:'';
   return [`[${x.time}] ${x.title}`,x.text,changes.join(' · '),chance].filter(Boolean).join('\n');
 }
-export function summaryText(s) {const r=summary(s);return [`下一站，毕业 · ${r.name}的本局档案`,`结局：${r.ending?.title||'尚未结束'}`,r.ending?.text||'',r.offer?`录用：${r.offer.rating||'录用'}｜${r.offer.salaryBasis||'税前年总包'} ${r.offer.salary} 万｜${r.offer.packageText||''}｜${r.offer.benefits||''}`:'',`身份：${r.gender==='female'?'女':'男'}｜特质：${r.personality}｜魅力：${Math.round(r.charm)}`,`院校：${r.school}｜专业：${r.major}`,`累计成绩：${r.grade}｜排名：${r.rank}`,`综测：${r.comp}｜综合成绩：${r.combined}｜综合排名：${r.combinedRank}`,`余额：¥${r.balance.toLocaleString()}｜当前关系：${r.relationship}`,r.applicationAcademic?`求职时学业：${r.applicationAcademic.gpa} 分，排名 ${r.applicationAcademic.rank}/${s.cohort}；毕业尾声沿用学业水平。`:'',`彩票：${r.lottery.count} 张，支出 ¥${r.lottery.spent}，奖金 ¥${r.lottery.won}，净收益 ¥${r.lottery.net}`,r.epilogue,'','这一局的变化',...r.recap.lines,`日历生活支持：¥${r.recap.money.support}｜必要支出：¥${r.recap.money.necessary}｜其他资金净变化：¥${r.recap.money.otherNet}`,`实习工资：¥${r.recap.money.internshipGross}｜实习额外成本：¥${r.recap.money.internshipCost}`,'','模拟考试成绩',...r.quizHistory.map(h=>(h.purpose==='jobs'?'秋招':h.purpose==='exam'?'考研':'考公')+'：加权短卷 '+(h.weightedScore??h.score)+' 分；'+Object.entries(h.sections||{}).map(([name,x])=>name+' '+x.score+' 分').join('，')),`任职：${r.recap.posts.map(p=>p.name+'（'+p.period+'，履职 '+(p.tasks||0)+' 次，表现 '+(p.performance||0)+'）').join('；')||'无'}`,'','实际成绩明细',...r.recap.grades.map(g=>g.label+'：'+g.grade+' 分'+(g.remediated?'，原始 '+g.originalGrade+' 分，补救通过':'')),`人生关键词：${r.keywords.join('、')||'普通而独特的大学生活'}`,'','综测加分明细',...r.creditLedger.map(x=>'第'+(x.year+1)+'学年：'+x.label+' +'+x.points+'分'),`生涯累计综测加分：${r.lifetimeCredits}`,'','考试与赛事结果',...r.programs.map(p=>p.name+'：'+(p.result||({preparing:'已报名，准备中',awaiting:'已参加，等待结果'}[p.status]||p.status))),'','本局记录',...r.log.map(recordText),'','所有院校、企业、城市、薪酬与录取规则均为虚构游戏设定；彩票概率与奖金是游戏设定。'].join('\n');}
+export function summaryText(s) {const r=summary(s);return [`下一站，毕业 · ${r.name}的本局档案`,`结局：${r.ending?.title||'尚未结束'}`,r.ending?.text||'',r.offer?`录用：${r.offer.rating||'录用'}｜${r.offer.salaryBasis||'税前年总包'} ${r.offer.salary} 万｜${r.offer.packageText||''}｜${r.offer.benefits||''}`:'',`身份：${r.gender==='female'?'女':'男'}｜特质：${r.personality}｜魅力：${Math.round(r.charm)}`,`院校：${r.school}｜专业：${r.major}`,`累计成绩：${r.grade}｜排名：${r.rank}`,`综测：${r.comp}｜综合成绩：${r.combined}｜综合排名：${r.combinedRank}`,`余额：¥${r.balance.toLocaleString()}｜当前关系：${r.relationship}`,r.applicationAcademic?`求职时学业：${r.applicationAcademic.gpa} 分，排名 ${r.applicationAcademic.rank}/${s.cohort}；毕业尾声沿用学业水平。`:'',`彩票：${r.lottery.count} 张，支出 ¥${r.lottery.spent}，奖金 ¥${r.lottery.won}，净收益 ¥${r.lottery.net}`,r.epilogue,'','这一局的变化',...r.recap.lines,`日历生活支持：¥${r.recap.money.support}｜必要支出：¥${r.recap.money.necessary}｜其他资金净变化：¥${r.recap.money.otherNet}`,`实习工资：¥${r.recap.money.internshipGross}｜实习额外成本：¥${r.recap.money.internshipCost}`,'','模拟考试成绩',...r.quizHistory.map(h=>(h.purpose==='jobs'?'秋招':h.purpose==='exam'?'考研':'考公')+'：加权短卷 '+(h.weightedScore??h.score)+' 分；'+Object.entries(h.sections||{}).map(([name,x])=>name+' '+x.score+' 分').join('，')),`任职：${r.recap.posts.map(p=>p.name+'（'+p.period+'，履职 '+(p.tasks||0)+' 次，表现 '+(p.performance||0)+'）').join('；')||'无'}`,'','考研综合录取成绩',...r.examAssessments.map(a=>`${a.time}：笔试 ${a.writtenScore} ×70% + 面试 ${a.interviewScore} ×30% = 综合 ${a.combinedScore}；参考线 ${a.combinedLine}；录取概率 ${Math.round(a.value*100)}%；${a.accepted?'已录取':'未录取'}`),'','实际成绩明细',...r.recap.grades.map(g=>g.label+'：'+g.grade+' 分'+(g.remediated?'，原始 '+g.originalGrade+' 分，补救通过':'')),`人生关键词：${r.keywords.join('、')||'普通而独特的大学生活'}`,'','综测加分明细',...r.creditLedger.map(x=>'第'+(x.year+1)+'学年：'+x.label+' +'+x.points+'分'),`生涯累计综测加分：${r.lifetimeCredits}`,'','考试与赛事结果',...r.programs.map(p=>p.name+'：'+(p.result||({preparing:'已报名，准备中',awaiting:'已参加，等待结果'}[p.status]||p.status))),'','本局记录',...r.log.map(recordText),'','所有院校、企业、城市、薪酬与录取规则均为虚构游戏设定；彩票概率与奖金是游戏设定。'].join('\n');}
