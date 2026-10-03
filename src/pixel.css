@@ -24,3 +24,5 @@ button:focus-visible,input:focus-visible,select:focus-visible,summary:focus-visi
 @media(max-width:820px){.setup-wizard .school-card{min-height:106px;padding-left:80px}.school-symbol{position:absolute;left:18px;top:26px;width:44px;height:44px;margin:0}.selection-mark{top:39px}.target-school-badge{width:42px;height:42px}}
 @media(prefers-reduced-motion:reduce){.pixel-sad-cloud{animation:none}}
 .notification-box .outcome-text{white-space:pre-line}.credit-details p{overflow-wrap:anywhere}.outcome-box .primary{min-height:48px}
+
+.creator-credit{display:flex;justify-content:center;align-items:center;flex-wrap:wrap;gap:4px 8px;margin:16px 0 0;font-size:12px;line-height:1.8;color:var(--muted)}.creator-credit a{color:var(--green);text-underline-offset:3px}.creator-credit>span{font-size:11px}

@@ -92,6 +92,7 @@ export function pixelPortrait(s = {}, context = sceneFor(s)) {
 
 export function pixelIcon(id) {
   const shapes={
+    wallet:rect(8,2,8,2,'#97663d')+rect(4,4,16,3,'#97663d')+rect(2,7,20,10,'#97663d')+rect(4,17,16,3,'#97663d')+rect(8,20,8,2,'#97663d')+rect(8,4,8,2,'#f1d981')+rect(5,6,14,12,'#e5b952')+rect(8,18,8,2,'#d39a3e')+rect(7,7,2,9,'#fff0b0')+rect(12,7,2,10,'#a77638')+rect(10,9,6,2,'#a77638')+rect(10,13,6,2,'#a77638'),
     log:rect(5,3,14,19,ink)+rect(7,5,10,15,'#f3e6bc')+rect(9,1,6,5,'#819b74')+rect(9,8,6,2,'#758f90')+rect(9,12,6,2,'#758f90')+rect(9,16,4,2,'#758f90'),
     rules:rect(3,4,8,16,'#758f90')+rect(13,4,8,16,'#819b74')+rect(5,6,5,11,'#fff2cf')+rect(14,6,5,11,'#fff2cf')+rect(11,5,2,17,ink)+rect(6,8,3,1,ink)+rect(6,11,3,1,ink)+rect(15,8,3,1,ink)+rect(15,11,3,1,ink),
     study:rect(3,5,8,14,'#758f90')+rect(13,5,8,14,'#758f90')+rect(5,7,5,10,'#fff2cf')+rect(14,7,5,10,'#fff2cf')+rect(11,6,2,15,ink),

@@ -18,6 +18,12 @@ body.focus-game {height:100dvh;min-height:0;overflow:hidden;background:var(--bg)
 .play-vitals b {font-size:14px;color:var(--ink);font-weight:600;}
 .play-vitals .meter {height:4px!important;margin:5px 0 0!important;border:0;}
 .play-vitals .wallet-readout {display:flex;align-items:center;justify-content:space-between;gap:8px;}
+.play-vitals .wallet-readout>span {justify-content:flex-start;gap:4px;white-space:nowrap;}
+.play-vitals .wallet-readout .pixel-icon {width:16px;height:16px;flex-shrink:0;}
+.play-vitals .wallet-readout b {white-space:nowrap;}
+@media (max-width:360px) {
+  .play-vitals .large-balance .wallet-label {display:none;}
+}
 .focus-game .semester-progress {height:3px;margin:0 0 10px;border:0;flex-shrink:0;}
 .focus-game .main-column>.pixel-scene {flex-shrink:0;height:clamp(76px,17dvh,148px);margin:0;border-bottom:0;box-shadow:3px 0 0 var(--pixel-shadow);}
 .focus-game .pixel-scene-art {height:100%;width:100%;object-fit:cover;}

@@ -2,9 +2,9 @@
 
 大学到毕业模拟器的网页版本，原生 JavaScript 模块，无运行时第三方依赖。
 
-像素版公开站点：[下一站，毕业](https://next-stop-graduation-pixel.wangboyang6666.chatgpt.site)。GitHub 分支：`feat/pixel-campus`。
+官方游戏站点：[下一站，毕业](https://college-life-simulator.space)，通过阿里云 ESA 发布。作者：[boyang-x](https://github.com/boyang-x)，GitHub 分支：`feat/pixel-campus`。原创与使用权限见 [COPYRIGHT.md](COPYRIGHT.md)。
 
-当前分支版本 **0.13.1 · 电脑与手机独立布局**，位于 `feat/pixel-campus`。手机左上角打开人物档案覆盖层；主游戏固定在一屏，长文本在正文内部滚动，选择区固定在下方。电脑恢复右侧常驻人物档案，记录和说明使用像素图标按钮，移除重复入口。电脑专用样式单独放在仅大屏生效的文件中。两端都取消批量课余安排，长事件跨月时逐月由玩家亲自选择；暑假七月—八月只选择一次。考研采用笔试70%＋面试30%，笔试满分三种面试方式均可录取。最新布局修正见 [ROUND13_LAYOUT_FIX.md](ROUND13_LAYOUT_FIX.md)，考研计分见 [ROUND13_RELEASE_NOTES.md](ROUND13_RELEASE_NOTES.md)。上一轮新增159个事件节点，合计520个；研究生新增48个，共68个（起步16、中期18、毕业14）。延长课程与项目日程，保留教学月自由活动；增加既有选择的后续、男女服饰与仪容事件、小猫像素形象和毕业照彩蛋，修订不合理主动选项与综测分值，并提高彩票中奖概率。范围见 [ROUND12_PLAN.md](ROUND12_PLAN.md)，逐条内容见 [ROUND12_CONTENT_REVIEW.md](ROUND12_CONTENT_REVIEW.md)，验收见 [ROUND12_COMPLETION_AUDIT.md](ROUND12_COMPLETION_AUDIT.md)，当前规则见 [GAME_DESIGN.md](GAME_DESIGN.md)。
+当前分支版本 **0.13.2 · 手机状态与原创署名**，位于 `feat/pixel-campus`。手机余额增加像素金币，心情统一显示当前值/100；首页、玩法说明与生涯总结保留 boyang-x 署名及官方来源。手机左上角打开人物档案覆盖层；主游戏固定在一屏，长文本在正文内部滚动，选择区固定在下方。电脑恢复右侧常驻人物档案，记录和说明使用像素图标按钮，移除重复入口。电脑专用样式单独放在仅大屏生效的文件中。两端都取消批量课余安排，长事件跨月时逐月由玩家亲自选择；暑假七月—八月只选择一次。考研采用笔试70%＋面试30%，笔试满分三种面试方式均可录取。最新布局修正见 [ROUND13_LAYOUT_FIX.md](ROUND13_LAYOUT_FIX.md)，考研计分见 [ROUND13_RELEASE_NOTES.md](ROUND13_RELEASE_NOTES.md)。上一轮新增159个事件节点，合计520个；研究生新增48个，共68个（起步16、中期18、毕业14）。延长课程与项目日程，保留教学月自由活动；增加既有选择的后续、男女服饰与仪容事件、小猫像素形象和毕业照彩蛋，修订不合理主动选项与综测分值，并提高彩票中奖概率。范围见 [ROUND12_PLAN.md](ROUND12_PLAN.md)，逐条内容见 [ROUND12_CONTENT_REVIEW.md](ROUND12_CONTENT_REVIEW.md)，验收见 [ROUND12_COMPLETION_AUDIT.md](ROUND12_COMPLETION_AUDIT.md)，当前规则见 [GAME_DESIGN.md](GAME_DESIGN.md)。
 
 结局页可保存1080×1640生涯总结PNG，并保留文字总结。31家单位62个岗位区分具体职责、单位性质、工作节奏、福利与待遇；大厂30万起，核心研发岗位可获得S/SS/SSP，满足突出准备条件后可开100—120万游戏总包。考公先选择国考、省考或定向选调的8类去向，各有笔试线、竞争与匹配经历。薪酬、股权估值、录取线和条件是游戏设定。匿名统计与反馈入口尚未实施。
 
@@ -14,7 +14,7 @@
 
 在本目录运行 `npm run dev`，打开 http://127.0.0.1:5188 。仅监听本机；这是本地预览。可用 `node server.mjs 其他端口` 指定端口。
 
-`npm run build` 将浏览器所需的入口、源码模块与图片复制到 `dist/`，供静态托管；不发布开发服务器、测试或审计文档。Sites 配置见 `.openai/hosting.json`。
+`npm run build` 将浏览器所需的入口、源码模块与图片复制到 `dist/`，供静态托管；不发布开发服务器、测试或审计文档。阿里云 ESA 的构建命令为 `npm run build`，输出目录为 `dist`；若手动上传，上传 `dist` 内的文件（入口 `index.html` 位于根目录）。历史 Sites 配置保留在 `.openai/hosting.json`，当前官方站点以 ESA 为准。
 
 以**新开局**体验完整的新事件与规则。当前存档版本6，支持版本4、5迁移；仅根据已确认成果和实际履职重建综测，旧档未结算事件更新文案，已结算结果、随机进度、彩票和剧情接续保留。存档仅在当前浏览器本地保存。
 

@@ -1,6 +1,7 @@
 import {characterSVG} from './pixel-art.js';
 import {catSVG} from './campus-cat.js';
 import {brandLogo} from './pixel-marks.js';
+import {AUTHOR, SITE_URL} from './site-info.js';
 // Canvas uses local fonts and inline art only; no uploads or remote dependencies.
 const FONT='"Microsoft YaHei", "PingFang SC", "Noto Sans CJK SC", sans-serif';
 export function wrapText(ctx,value,width,maxLines=3){
@@ -70,7 +71,8 @@ export async function createSummaryImage(r){
   const keywords=r.keywords.slice(0,4);
   text(keywords.length?'留下的经历：'+keywords.join(' · '):'平凡也有自己的故事',90,1375,25,green,900,2,38);
   rule(1480);
-  text('每一次选择，都写进了这段人生。',90,1508,25,muted);
+  text('原创小游戏 · '+AUTHOR,90,1508,25,muted,450,1);
+  text(new URL(SITE_URL).hostname,565,1513,19,muted,425,1);
   text('虚构模拟 · 岗位、薪酬与录取结果为游戏设定',90,1555,19,muted);
   const blob=await new Promise((resolve,reject)=>canvas.toBlob(b=>b?resolve(b):reject(new Error('图片导出失败')),'image/png'));
   return {blob,width:canvas.width,height:canvas.height};
